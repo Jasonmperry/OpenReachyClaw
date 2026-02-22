@@ -25,6 +25,9 @@ openreachyclaw = "openreachyclaw.main:cli_entry"
 [project.entry-points."reachy_mini_apps"]
 openreachyclaw = "openreachyclaw.main:OpenReachyClaw"
 
+[tool.setuptools.packages.find]
+include = ["openreachyclaw*"]
+
 [build-system]
 requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
