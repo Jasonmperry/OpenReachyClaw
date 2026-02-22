@@ -1,0 +1,13 @@
+# Pollen defaults
+dance
+stop_dance
+play_emotion
+stop_emotion
+camera
+head_tracking
+move_head
+do_nothing
+
+# Our additions
+send_message_to_channel
+send_photo_to_channel
