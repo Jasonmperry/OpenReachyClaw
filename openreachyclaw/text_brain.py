@@ -13,6 +13,7 @@ from openreachyclaw.config import (
     get_history_max_messages,
     get_history_ttl_seconds,
     get_openai_api_key,
+    get_openai_base_url,
     get_text_model,
 )
 
@@ -76,11 +77,13 @@ class TextBrain:
         self.history = ConversationHistory()
         self._api_key = get_openai_api_key()
         self._model = get_text_model()
+        base_url = get_openai_base_url()
         self._client = httpx.AsyncClient(
-            base_url="https://api.openai.com/v1",
+            base_url=base_url,
             headers={"Authorization": f"Bearer {self._api_key}"},
             timeout=60.0,
         )
+        logger.info("TextBrain using model=%s at %s", self._model, base_url)
 
     async def close(self) -> None:
         await self._client.aclose()
