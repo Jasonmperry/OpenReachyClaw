@@ -117,6 +117,6 @@ echo "  Web UI:   http://localhost:8000"
 echo "  Log:      $LOG_FILE"
 echo ""
 
-# Run the conversation app — this is the main entry point
-# Pipe to tee so logs are saved to /tmp for debugging
-python -m reachy_mini_conversation_app 2>&1 | tee "$LOG_FILE"
+# Run the conversation app — use the installed console script entry point
+# (python -m doesn't work because the package has no __main__.py)
+reachy-mini-conversation-app 2>&1 | tee "$LOG_FILE"
