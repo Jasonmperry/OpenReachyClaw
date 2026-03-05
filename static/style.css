@@ -76,7 +76,49 @@ body {
   text-transform: uppercase; border: 1px solid var(--border); color: var(--gray);
 }
 .chip-ok { background: rgba(0,180,216,0.12); border-color: rgba(0,180,216,0.4); color: var(--aqua); }
+.chip-off { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.15); color: var(--gray); opacity: 0.7; }
 .chip-warn { background: rgba(230,57,70,0.12); border-color: rgba(230,57,70,0.4); color: var(--magenta); }
+
+/* Connection dot */
+.status-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 0.4rem;
+}
+.dot-on { background: var(--aqua); box-shadow: 0 0 6px var(--aqua); }
+.dot-off { background: var(--gray); opacity: 0.5; }
+
+/* Top bar buttons */
+.topbar-right { display: flex; align-items: center; gap: 0.5rem; }
+.topbar-btn {
+  padding: 0.3rem 0.7rem; border-radius: var(--radius-md);
+  font-family: var(--font-mono); font-size: 0.65rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em; cursor: pointer;
+  transition: all 0.2s ease; border: 1px solid;
+}
+.topbar-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.topbar-btn-wake {
+  background: rgba(0,180,216,0.15); border-color: rgba(0,180,216,0.5); color: var(--aqua);
+}
+.topbar-btn-wake:hover:not(:disabled) { background: rgba(0,180,216,0.25); }
+.topbar-btn-sleep {
+  background: rgba(255,181,71,0.12); border-color: rgba(255,181,71,0.4); color: #ffb547;
+}
+.topbar-btn-sleep:hover:not(:disabled) { background: rgba(255,181,71,0.22); }
+.topbar-btn-refresh {
+  background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.15); color: var(--cool-gray);
+}
+.topbar-btn-refresh:hover:not(:disabled) { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3); }
+
+/* Status banners */
+.status-banner {
+  padding: 0.75rem 1.25rem; border-radius: var(--radius-md); margin-bottom: 1.25rem;
+  font-size: 0.82rem; font-weight: 500;
+}
+.status-banner-off {
+  background: rgba(230,57,70,0.08); border: 1px solid rgba(230,57,70,0.25); color: var(--magenta);
+}
+.status-banner-sleep {
+  background: rgba(255,181,71,0.08); border: 1px solid rgba(255,181,71,0.25); color: #ffb547;
+}
 
 /* Tab bar */
 .tab-bar {

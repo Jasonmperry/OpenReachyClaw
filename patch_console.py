@@ -12,12 +12,68 @@ from pathlib import Path
 
 CONSOLE_PY = Path.home() / "reachy_mini_conversation_app/src/reachy_mini_conversation_app/console.py"
 MARKER = "        self._settings_initialized = True"
-ALREADY_PATCHED = "/control/dance"
+ALREADY_PATCHED = "/control/status"
 
 PATCH = '''
         # ---- Robot Control Endpoints (added by OpenReachyClaw) ----
 
         import json as _json
+
+        @self._settings_app.get("/control/status")
+        def _control_status():
+            """Return robot connection state and sleep/wake status."""
+            try:
+                deps = self.handler.deps if hasattr(self, "handler") and self.handler else None
+                if deps is None or deps.reachy_mini is None:
+                    return JSONResponse({"connected": False, "awake": False})
+                rm = deps.reachy_mini
+                # Check if robot is responsive
+                connected = True
+                # Reachy Mini uses goto_sleep / wake_up; check internal state if available
+                awake = True
+                if hasattr(rm, '_is_sleeping'):
+                    awake = not rm._is_sleeping
+                elif hasattr(rm, 'is_awake'):
+                    awake = rm.is_awake
+                return JSONResponse({"connected": connected, "awake": awake})
+            except Exception as e:
+                return JSONResponse({"connected": False, "awake": False, "error": str(e)})
+
+        @self._settings_app.post("/control/sleep")
+        async def _control_sleep():
+            """Put Reachy to sleep — stops conversation, motors go limp."""
+            try:
+                deps = self.handler.deps if hasattr(self, "handler") and self.handler else None
+                if deps is None or deps.reachy_mini is None:
+                    return JSONResponse({"error": "Robot not ready"}, status_code=503)
+                deps.reachy_mini.goto_sleep()
+                # Also stop any active voice session
+                try:
+                    if hasattr(self, "handler") and self.handler:
+                        await self.handler.shutdown()
+                except Exception:
+                    pass
+                return JSONResponse({"status": "sleeping", "message": "Rosie is now sleeping"})
+            except Exception as e:
+                return JSONResponse({"error": str(e)}, status_code=500)
+
+        @self._settings_app.post("/control/wake")
+        async def _control_wake():
+            """Wake Reachy up — motors engage, ready for conversation."""
+            try:
+                deps = self.handler.deps if hasattr(self, "handler") and self.handler else None
+                if deps is None or deps.reachy_mini is None:
+                    return JSONResponse({"error": "Robot not ready"}, status_code=503)
+                deps.reachy_mini.wake_up()
+                # Restart voice session if handler is available
+                try:
+                    if hasattr(self, "handler") and self.handler:
+                        await self.handler.start_up()
+                except Exception:
+                    pass
+                return JSONResponse({"status": "awake", "message": "Rosie is awake and ready"})
+            except Exception as e:
+                return JSONResponse({"error": str(e)}, status_code=500)
 
         @self._settings_app.post("/control/dance")
         async def _control_dance(request: _FastAPIRequest):

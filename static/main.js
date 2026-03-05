@@ -11,7 +11,7 @@ createApp({
     const keyMessageClass = ref('');
     const savingKey = ref(false);
 
-    const activeTab = ref('live');
+    const activeTab = ref('controls');
     const tabs = [
       { id: 'live', label: 'Live' },
       { id: 'controls', label: 'Controls' },
@@ -54,8 +54,13 @@ createApp({
     const parsedMessages = ref([]);
     let logInterval = null;
 
+    // ---- Connection + Sleep/Wake state ----
+    const robotConnected = ref(false);
+    const robotAwake = ref(false);
+    const sleepBusy = ref(false);
+    let statusInterval = null;
+
     // ---- Controls tab state ----
-    // Curated lists with descriptions from Reachy Mini docs
     const DANCE_CATALOG = [
       { id: 'jackson_square', label: 'Jackson Square', desc: 'Precision shoulder pops with sharp hits' },
       { id: 'interwoven_spirals', label: 'Interwoven Spirals', desc: 'Layered, twisting spirals across axes' },
@@ -121,6 +126,57 @@ createApp({
         await new Promise(r => setTimeout(r, 500));
       }
       return null;
+    }
+
+    // ---- Connection status polling ----
+    async function checkRobotStatus() {
+      try {
+        const data = await fetchJSON(`/control/status?_=${Date.now()}`, {}, 3000);
+        robotConnected.value = data.connected !== false;
+        robotAwake.value = data.awake !== false;
+      } catch {
+        // If we can reach the server at all (status endpoint), mark as connected but unknown state
+        try {
+          await fetchJSON(`/status?_=${Date.now()}`, {}, 2000);
+          robotConnected.value = true;
+          // If /control/status doesn't exist yet, assume awake
+          robotAwake.value = true;
+        } catch {
+          robotConnected.value = false;
+          robotAwake.value = false;
+        }
+      }
+    }
+
+    function startStatusPolling() {
+      checkRobotStatus();
+      statusInterval = setInterval(checkRobotStatus, 5000);
+    }
+
+    // ---- Sleep / Wake ----
+    async function toggleSleepWake() {
+      sleepBusy.value = true;
+      const action = robotAwake.value ? 'sleep' : 'wake';
+      controlMessage.value = action === 'sleep' ? 'Putting Rosie to sleep...' : 'Waking Rosie up...';
+      controlMessageClass.value = '';
+      try {
+        const data = await fetchJSON(`/control/${action}`, { method: 'POST' }, 10000);
+        if (data.error) {
+          controlMessage.value = data.error;
+          controlMessageClass.value = 'msg-error';
+        } else {
+          robotAwake.value = action === 'wake';
+          controlMessage.value = action === 'wake' ? 'Rosie is awake!' : 'Rosie is sleeping.';
+          controlMessageClass.value = 'msg-ok';
+        }
+      } catch {
+        controlMessage.value = `Failed to ${action} — is Rosie running?`;
+        controlMessageClass.value = 'msg-error';
+      } finally {
+        sleepBusy.value = false;
+        // Refresh status
+        setTimeout(checkRobotStatus, 1000);
+      }
     }
 
     // ---- API Key ----
@@ -251,11 +307,9 @@ createApp({
 
     // ---- Controls: Dance, Emotion, Session ----
     async function fetchDances() {
-      // Try to get live list from server; fall back to catalog
       try {
         const data = await fetchJSON(`/control/dances?_=${Date.now()}`);
         if (data.moves && data.moves.length) {
-          // Merge server moves with catalog descriptions
           const catalogMap = Object.fromEntries(DANCE_CATALOG.map(d => [d.id, d]));
           availableDances.value = data.moves.map(id => catalogMap[id] || { id, label: id.replace(/_/g, ' '), desc: '' });
         }
@@ -334,14 +388,12 @@ createApp({
       const messages = [];
       const lines = raw.split('\n');
       for (const line of lines) {
-        // Tool calls
         const toolMatch = line.match(/Tool call: (\w+)\s+(.*)/);
         if (toolMatch) {
           const time = line.match(/(\d{2}:\d{2}:\d{2})/)?.[1] || '';
           messages.push({ type: 'tool', role: 'tool', time, text: `${toolMatch[1]}: ${toolMatch[2]}` });
           continue;
         }
-        // Assistant content (conversation messages)
         const contentMatch = line.match(/role=(\w+)\s+content=(.*)/);
         if (contentMatch) {
           const time = line.match(/(\d{2}:\d{2}:\d{2})/)?.[1] || '';
@@ -357,14 +409,12 @@ createApp({
           messages.push({ type, role, time, text });
           continue;
         }
-        // User speech (transcript)
         const speechMatch = line.match(/transcript.*?['"](.*?)['"]/i) || line.match(/user.*?said.*?['"](.*?)['"]/i);
         if (speechMatch) {
           const time = line.match(/(\d{2}:\d{2}:\d{2})/)?.[1] || '';
           messages.push({ type: 'user', role: 'user', time, text: speechMatch[1] });
           continue;
         }
-        // Realtime session events
         if (line.includes('Realtime session') || line.includes('Loading prompt') || line.includes('Starting Reachy')) {
           const time = line.match(/(\d{2}:\d{2}:\d{2})/)?.[1] || '';
           const text = line.replace(/.*INFO\s+\S+\s*\|\s*/, '').replace(/.*INFO:.*?\|\s*/, '').trim();
@@ -412,12 +462,19 @@ createApp({
         if (selectedProfile.value) await loadProfile();
         fetchRegisteredTools();
       }
-      // Load gallery images on startup
       fetchGalleryImages();
+      // Start polling robot connection status
+      startStatusPolling();
+      // Load controls data
+      fetchDances();
+      fetchEmotions();
       loading.value = false;
     });
 
-    onUnmounted(() => { if (logInterval) clearInterval(logInterval); });
+    onUnmounted(() => {
+      if (logInterval) clearInterval(logInterval);
+      if (statusInterval) clearInterval(statusInterval);
+    });
 
     return {
       loading, hasKey, showKeyForm, apiKeyInput, keyError, keyMessage, keyMessageClass, savingKey, saveApiKey,
@@ -428,6 +485,8 @@ createApp({
       loadProfile, toggleTool, newProfile, saveProfile, applyProfile,
       registeredTools,
       logText, logOutput, logMessages, autoRefreshLogs, parsedMessages, fetchLogs, toggleLogRefresh,
+      // Connection + sleep/wake
+      robotConnected, robotAwake, sleepBusy, toggleSleepWake,
       // Controls tab
       availableDances, availableEmotions, controlBusy, controlMessage, controlMessageClass,
       triggerDance, triggerEmotion, stopAll, restartSession,

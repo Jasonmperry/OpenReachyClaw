@@ -27,9 +27,21 @@
             <span class="topbar-title">Rosie</span>
           </div>
           <div class="topbar-right">
-            <span class="status-chip" :class="hasKey ? 'chip-ok' : 'chip-warn'">
-              {{ hasKey ? 'Connected' : 'No API Key' }}
+            <!-- Connection status indicator -->
+            <span class="status-chip" :class="robotConnected ? 'chip-ok' : 'chip-off'">
+              <span class="status-dot" :class="robotConnected ? 'dot-on' : 'dot-off'"></span>
+              {{ robotConnected ? (robotAwake ? 'Awake' : 'Sleeping') : 'Disconnected' }}
             </span>
+
+            <!-- Wake / Sleep toggle -->
+            <button class="topbar-btn" :class="robotAwake ? 'topbar-btn-sleep' : 'topbar-btn-wake'" @click="toggleSleepWake" :disabled="!robotConnected || sleepBusy" :title="robotAwake ? 'Put Rosie to sleep' : 'Wake Rosie up'">
+              {{ robotAwake ? 'Sleep' : 'Wake' }}
+            </button>
+
+            <!-- Refresh / Restart -->
+            <button class="topbar-btn topbar-btn-refresh" @click="restartSession" :disabled="!robotConnected || controlBusy" title="Restart voice session">
+              Restart
+            </button>
           </div>
         </header>
 
@@ -98,6 +110,14 @@
               <h1>Controls<span class="dot">.</span></h1>
             </div>
 
+            <!-- Status banner when disconnected -->
+            <div v-if="!robotConnected" class="status-banner status-banner-off">
+              Rosie is not connected. Check USB and restart the daemon.
+            </div>
+            <div v-else-if="!robotAwake" class="status-banner status-banner-sleep">
+              Rosie is sleeping. Press <strong>Wake</strong> in the header to start.
+            </div>
+
             <!-- Session controls -->
             <section class="card">
               <div class="card-header">
@@ -105,8 +125,8 @@
               </div>
               <p class="body-text">Manage the OpenAI Realtime voice session. Sessions auto-expire after 60 minutes.</p>
               <div class="actions">
-                <button class="btn-primary" @click="restartSession" :disabled="controlBusy">Restart Session</button>
-                <button class="btn-ghost" @click="stopAll">Stop All Movement</button>
+                <button class="btn-primary" @click="restartSession" :disabled="controlBusy || !robotConnected">Restart Session</button>
+                <button class="btn-ghost" @click="stopAll" :disabled="!robotConnected">Stop All Movement</button>
                 <span v-if="controlMessage" class="action-msg" :class="controlMessageClass">{{ controlMessage }}</span>
               </div>
             </section>
@@ -119,7 +139,7 @@
               </div>
               <p class="body-text">Tap a move to make Rosie dance! Movements use her 6-DoF head, 360&deg; body rotation, and animated antennas.</p>
               <div class="control-grid">
-                <button v-for="d in availableDances" :key="d.id" class="control-btn control-btn-dance" @click="triggerDance(d)" :disabled="controlBusy" :title="d.desc">
+                <button v-for="d in availableDances" :key="d.id" class="control-btn control-btn-dance" @click="triggerDance(d)" :disabled="controlBusy || !robotConnected" :title="d.desc">
                   <span class="control-btn-label">{{ d.label }}</span>
                   <span class="control-btn-desc">{{ d.desc }}</span>
                 </button>
@@ -134,7 +154,7 @@
               </div>
               <p class="body-text">Trigger snappy, personality-driven gestures &mdash; like emojis, but with a robot body.</p>
               <div class="control-grid">
-                <button v-for="e in availableEmotions" :key="e.id" class="control-btn control-btn-emotion" @click="triggerEmotion(e)" :disabled="controlBusy" :title="e.desc">
+                <button v-for="e in availableEmotions" :key="e.id" class="control-btn control-btn-emotion" @click="triggerEmotion(e)" :disabled="controlBusy || !robotConnected" :title="e.desc">
                   <span class="control-btn-emoji" v-if="e.emoji">{{ e.emoji }}</span>
                   <span class="control-btn-label">{{ e.label }}</span>
                   <span class="control-btn-desc">{{ e.desc }}</span>
