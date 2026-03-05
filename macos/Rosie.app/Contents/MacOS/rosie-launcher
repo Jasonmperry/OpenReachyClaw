@@ -96,11 +96,41 @@ if ! python -c "import reachy_mini_conversation_app" 2>/dev/null; then
     pip install -e "$ROSIE_HOME"
 fi
 
-# Export tool/profile paths for the conversation app
+# Set the profile name
 export REACHY_MINI_CUSTOM_PROFILE="${REACHY_MINI_CUSTOM_PROFILE:-rosie}"
-export REACHY_MINI_EXTERNAL_PROFILES_DIRECTORY="${REACHY_MINI_EXTERNAL_PROFILES_DIRECTORY:-$ROSIE_HOME/profiles}"
-export REACHY_MINI_EXTERNAL_TOOLS_DIRECTORY="${REACHY_MINI_EXTERNAL_TOOLS_DIRECTORY:-$ROSIE_HOME/openreachyclaw/tools}"
-export AUTOLOAD_EXTERNAL_TOOLS=1
+PROFILE="$REACHY_MINI_CUSTOM_PROFILE"
+
+# ── Symlink our profile + tools into the installed conversation app ──
+# The conversation app loads profiles/tools from inside its own package,
+# not from external directories. We symlink ours in so it finds them.
+SITE_PKG="$VENV_DIR/lib/python3.12/site-packages/reachy_mini_conversation_app"
+# Find site-packages dynamically in case of different Python minor versions
+if [[ ! -d "$SITE_PKG" ]]; then
+    SITE_PKG="$(python -c 'import reachy_mini_conversation_app as m; import os; print(os.path.dirname(m.__file__))' 2>/dev/null)"
+fi
+
+if [[ -d "$SITE_PKG" ]]; then
+    # Symlink our profile (rosie) into the package's profiles directory
+    PROFILES_TARGET="$SITE_PKG/profiles/$PROFILE"
+    if [[ ! -e "$PROFILES_TARGET" ]]; then
+        ln -sfn "$ROSIE_HOME/profiles/$PROFILE" "$PROFILES_TARGET"
+        echo "  Linked profile: $PROFILE → $PROFILES_TARGET"
+    fi
+
+    # Symlink our custom tools into the package's tools directory
+    TOOLS_SRC="$ROSIE_HOME/openreachyclaw/tools"
+    TOOLS_TARGET="$SITE_PKG/tools"
+    if [[ -d "$TOOLS_SRC" && -d "$TOOLS_TARGET" ]]; then
+        for tool_file in "$TOOLS_SRC"/*.py; do
+            tool_basename="$(basename "$tool_file")"
+            [[ "$tool_basename" == "__init__.py" ]] && continue
+            if [[ ! -e "$TOOLS_TARGET/$tool_basename" ]]; then
+                ln -sfn "$tool_file" "$TOOLS_TARGET/$tool_basename"
+                echo "  Linked tool: $tool_basename"
+            fi
+        done
+    fi
+fi
 
 # Banner
 LOG_FILE="/tmp/rosie-mac.log"
@@ -111,11 +141,14 @@ echo "╚═══════════════════════�
 echo ""
 echo "  Home:     $ROSIE_HOME"
 echo "  Python:   $(which python) ($(python --version 2>&1))"
-echo "  Profile:  $REACHY_MINI_CUSTOM_PROFILE"
-echo "  Tools:    $REACHY_MINI_EXTERNAL_TOOLS_DIRECTORY"
+echo "  Profile:  $PROFILE"
+echo "  Tools:    $ROSIE_HOME/openreachyclaw/tools"
 echo "  Web UI:   http://localhost:8000"
 echo "  Log:      $LOG_FILE"
 echo ""
+
+# Open the web UI in the default browser after a short delay
+(sleep 4 && open "http://localhost:8000") &
 
 # Run the conversation app — use the installed console script entry point
 # (python -m doesn't work because the package has no __main__.py)
