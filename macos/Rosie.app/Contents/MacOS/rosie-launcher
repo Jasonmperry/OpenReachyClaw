@@ -14,6 +14,10 @@
 
 set -e
 
+# macOS .app bundles don't inherit the user's shell PATH.
+# Add Homebrew and common Python install locations so we can find python3.12.
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:$PATH"
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 REPO_DIR="$(cd "$APP_DIR/.." && pwd)"
@@ -52,27 +56,35 @@ if [[ -f .env ]]; then
     set +a
 fi
 
-# Find Python 3.12 (preferred) or fall back
+# Find Python 3.12 (preferred) or fall back — skip system 3.9
 PYTHON=""
-for p in python3.12 python3.11 python3.13 python3; do
+for p in python3.12 python3.11 python3.13; do
     if command -v "$p" &>/dev/null; then
-        PYTHON="$p"
+        PYTHON="$(command -v "$p")"
         break
     fi
 done
 
+# Last resort: check if bare python3 is >= 3.10
+if [[ -z "$PYTHON" ]] && command -v python3 &>/dev/null; then
+    PY3_VER="$(python3 -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo 0)"
+    if [[ "$PY3_VER" -ge 10 ]]; then
+        PYTHON="$(command -v python3)"
+    fi
+fi
+
 if [[ -z "$PYTHON" ]]; then
-    osascript -e 'display dialog "Python 3.12+ not found.\n\nInstall via:\n  brew install python@3.12" buttons {"OK"} default button "OK" with icon stop with title "Rosie"'
+    osascript -e 'display dialog "Python 3.10+ not found.\n\nInstall via:\n  brew install python@3.12" buttons {"OK"} default button "OK" with icon stop with title "Rosie"'
     exit 1
 fi
 
 # Create venv if needed (first-time setup)
 VENV_DIR="$ROSIE_HOME/.venv"
 if [[ ! -d "$VENV_DIR" ]]; then
-    osascript -e 'display notification "Creating Python environment..." with title "Rosie" subtitle "First-time setup"'
+    osascript -e 'display notification "Creating Python environment with '"$("$PYTHON" --version 2>&1)"'..." with title "Rosie" subtitle "First-time setup — this may take a few minutes"'
     "$PYTHON" -m venv "$VENV_DIR"
-    "$VENV_DIR/bin/pip" install --quiet --upgrade pip
-    "$VENV_DIR/bin/pip" install --quiet -e "$ROSIE_HOME"
+    "$VENV_DIR/bin/pip" install --upgrade pip
+    "$VENV_DIR/bin/pip" install -e "$ROSIE_HOME"
 fi
 
 # Activate venv
@@ -81,7 +93,7 @@ source "$VENV_DIR/bin/activate"
 # Ensure the conversation app package is installed
 if ! python -c "import reachy_mini_conversation_app" 2>/dev/null; then
     osascript -e 'display notification "Installing Reachy Mini dependencies..." with title "Rosie" subtitle "This may take a minute"'
-    pip install --quiet -e "$ROSIE_HOME"
+    pip install -e "$ROSIE_HOME"
 fi
 
 # Export tool/profile paths for the conversation app
