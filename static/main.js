@@ -14,6 +14,7 @@ createApp({
     const activeTab = ref('live');
     const tabs = [
       { id: 'live', label: 'Live' },
+      { id: 'controls', label: 'Controls' },
       { id: 'settings', label: 'Settings' },
       { id: 'personality', label: 'Personality' },
       { id: 'tools', label: 'Tools & Skills' },
@@ -52,6 +53,13 @@ createApp({
     const autoRefreshLogs = ref(false);
     const parsedMessages = ref([]);
     let logInterval = null;
+
+    // ---- Controls tab state ----
+    const availableDances = ref([]);
+    const availableEmotions = ref([]);
+    const controlBusy = ref(false);
+    const controlMessage = ref('');
+    const controlMessageClass = ref('');
 
     // ---- Live tab state ----
     const cameraStreamUrl = ref('/camera/stream');
@@ -212,6 +220,74 @@ createApp({
 
     function openImage(img) { modalImage.value = img; }
 
+    // ---- Controls: Dance, Emotion, Session ----
+    async function fetchDances() {
+      try {
+        const data = await fetchJSON(`/control/dances?_=${Date.now()}`);
+        availableDances.value = data.moves || [];
+      } catch { availableDances.value = []; }
+    }
+
+    async function fetchEmotions() {
+      try {
+        const data = await fetchJSON(`/control/emotions?_=${Date.now()}`);
+        availableEmotions.value = data.emotions || [];
+      } catch { availableEmotions.value = []; }
+    }
+
+    async function triggerDance(move) {
+      controlBusy.value = true;
+      controlMessage.value = `Dancing: ${move.replace(/_/g, ' ')}...`;
+      controlMessageClass.value = '';
+      try {
+        const data = await fetchJSON('/control/dance', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ move, repeat: 1 }),
+        });
+        controlMessage.value = data.error ? data.error : `Queued: ${move.replace(/_/g, ' ')}`;
+        controlMessageClass.value = data.error ? 'msg-error' : 'msg-ok';
+      } catch { controlMessage.value = 'Failed.'; controlMessageClass.value = 'msg-error'; }
+      finally { controlBusy.value = false; }
+    }
+
+    async function triggerEmotion(emotion) {
+      controlBusy.value = true;
+      controlMessage.value = `Playing: ${emotion.replace(/_/g, ' ')}...`;
+      controlMessageClass.value = '';
+      try {
+        const data = await fetchJSON('/control/emotion', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emotion }),
+        });
+        controlMessage.value = data.error ? data.error : `Queued: ${emotion.replace(/_/g, ' ')}`;
+        controlMessageClass.value = data.error ? 'msg-error' : 'msg-ok';
+      } catch { controlMessage.value = 'Failed.'; controlMessageClass.value = 'msg-error'; }
+      finally { controlBusy.value = false; }
+    }
+
+    async function stopAll() {
+      controlBusy.value = true;
+      controlMessage.value = 'Stopping...';
+      try {
+        await fetchJSON('/control/stop', { method: 'POST' });
+        controlMessage.value = 'Stopped all movement.';
+        controlMessageClass.value = 'msg-ok';
+      } catch { controlMessage.value = 'Stop failed.'; controlMessageClass.value = 'msg-error'; }
+      finally { controlBusy.value = false; }
+    }
+
+    async function restartSession() {
+      controlBusy.value = true;
+      controlMessage.value = 'Restarting voice session...';
+      controlMessageClass.value = '';
+      try {
+        const data = await fetchJSON('/control/restart', { method: 'POST' }, 15000);
+        controlMessage.value = data.error ? data.error : 'Voice session restarted!';
+        controlMessageClass.value = data.error ? 'msg-error' : 'msg-ok';
+      } catch { controlMessage.value = 'Restart failed.'; controlMessageClass.value = 'msg-error'; }
+      finally { controlBusy.value = false; }
+    }
+
     // ---- Logs ----
     function parseLogMessages(raw) {
       const messages = [];
@@ -277,6 +353,7 @@ createApp({
       if (tab === 'logs') fetchLogs();
       if (tab === 'tools') fetchRegisteredTools();
       if (tab === 'live') fetchGalleryImages();
+      if (tab === 'controls') { fetchDances(); fetchEmotions(); }
     });
 
     onMounted(async () => {
@@ -310,6 +387,9 @@ createApp({
       loadProfile, toggleTool, newProfile, saveProfile, applyProfile,
       registeredTools,
       logText, logOutput, logMessages, autoRefreshLogs, parsedMessages, fetchLogs, toggleLogRefresh,
+      // Controls tab
+      availableDances, availableEmotions, controlBusy, controlMessage, controlMessageClass,
+      triggerDance, triggerEmotion, stopAll, restartSession,
       // Live tab
       cameraStreamUrl, cameraError, stylePrompt, generatingImage,
       galleryImages, liveMessage, liveMessageClass, modalImage,

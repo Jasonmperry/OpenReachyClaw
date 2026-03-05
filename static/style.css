@@ -418,6 +418,52 @@ input::placeholder, textarea::placeholder { color: rgba(139,146,160,0.5); }
 .footer p { font-size: 0.75rem; color: var(--gray); }
 .footer strong { color: var(--aqua); font-weight: 600; }
 
+/* ---- Controls tab ---- */
+.control-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.control-btn {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: capitalize;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--cool-gray);
+}
+.control-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.control-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.control-btn-dance {
+  border-color: rgba(0, 180, 216, 0.3);
+}
+.control-btn-dance:hover:not(:disabled) {
+  background: rgba(0, 180, 216, 0.1);
+  border-color: var(--aqua);
+  color: var(--aqua);
+}
+.control-btn-emotion {
+  border-color: rgba(230, 57, 70, 0.3);
+}
+.control-btn-emotion:hover:not(:disabled) {
+  background: rgba(230, 57, 70, 0.1);
+  border-color: var(--magenta);
+  color: var(--magenta);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .content { padding: 1.5rem 1rem 2rem; }

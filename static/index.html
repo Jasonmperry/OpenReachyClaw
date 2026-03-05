@@ -91,6 +91,55 @@
             </div>
           </div>
 
+          <!-- =============== CONTROLS =============== -->
+          <div v-show="activeTab === 'controls'">
+            <div class="page-header">
+              <p class="kicker">Robot</p>
+              <h1>Controls<span class="dot">.</span></h1>
+            </div>
+
+            <!-- Session controls -->
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Session</p><h2>Voice Session</h2></div>
+              </div>
+              <p class="body-text">Manage the OpenAI Realtime voice session. Sessions auto-expire after 60 minutes.</p>
+              <div class="actions">
+                <button class="btn-primary" @click="restartSession" :disabled="controlBusy">Restart Session</button>
+                <button class="btn-ghost" @click="stopAll">Stop All Movement</button>
+                <span v-if="controlMessage" class="action-msg" :class="controlMessageClass">{{ controlMessage }}</span>
+              </div>
+            </section>
+
+            <!-- Dances -->
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Movement</p><h2>Dances</h2></div>
+                <span class="tag tag-ok">{{ availableDances.length }} moves</span>
+              </div>
+              <p class="body-text">Tap a move to make Rosie dance!</p>
+              <div class="control-grid">
+                <button v-for="d in availableDances" :key="d" class="control-btn control-btn-dance" @click="triggerDance(d)" :disabled="controlBusy">
+                  {{ d.replace(/_/g, ' ') }}
+                </button>
+              </div>
+            </section>
+
+            <!-- Emotions -->
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Expression</p><h2>Emotions</h2></div>
+                <span class="tag tag-ok">{{ availableEmotions.length }} reactions</span>
+              </div>
+              <p class="body-text">Trigger an emotional reaction.</p>
+              <div class="control-grid">
+                <button v-for="e in availableEmotions" :key="e.name" class="control-btn control-btn-emotion" @click="triggerEmotion(e.name)" :disabled="controlBusy" :title="e.description">
+                  {{ e.name.replace(/_/g, ' ') }}
+                </button>
+              </div>
+            </section>
+          </div>
+
           <!-- =============== SETTINGS =============== -->
           <div v-show="activeTab === 'settings'">
             <div class="page-header">
