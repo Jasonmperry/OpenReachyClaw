@@ -114,13 +114,14 @@
             <!-- Dances -->
             <section class="card">
               <div class="card-header">
-                <div><p class="kicker">Movement</p><h2>Dances</h2></div>
+                <div><p class="kicker">Movement</p><h2>Dance Moves</h2></div>
                 <span class="tag tag-ok">{{ availableDances.length }} moves</span>
               </div>
-              <p class="body-text">Tap a move to make Rosie dance!</p>
+              <p class="body-text">Tap a move to make Rosie dance! Movements use her 6-DoF head, 360&deg; body rotation, and animated antennas.</p>
               <div class="control-grid">
-                <button v-for="d in availableDances" :key="d" class="control-btn control-btn-dance" @click="triggerDance(d)" :disabled="controlBusy">
-                  {{ d.replace(/_/g, ' ') }}
+                <button v-for="d in availableDances" :key="d.id" class="control-btn control-btn-dance" @click="triggerDance(d)" :disabled="controlBusy" :title="d.desc">
+                  <span class="control-btn-label">{{ d.label }}</span>
+                  <span class="control-btn-desc">{{ d.desc }}</span>
                 </button>
               </div>
             </section>
@@ -128,13 +129,15 @@
             <!-- Emotions -->
             <section class="card">
               <div class="card-header">
-                <div><p class="kicker">Expression</p><h2>Emotions</h2></div>
+                <div><p class="kicker">Expression</p><h2>Emoji Reactions</h2></div>
                 <span class="tag tag-ok">{{ availableEmotions.length }} reactions</span>
               </div>
-              <p class="body-text">Trigger an emotional reaction.</p>
+              <p class="body-text">Trigger snappy, personality-driven gestures &mdash; like emojis, but with a robot body.</p>
               <div class="control-grid">
-                <button v-for="e in availableEmotions" :key="e.name" class="control-btn control-btn-emotion" @click="triggerEmotion(e.name)" :disabled="controlBusy" :title="e.description">
-                  {{ e.name.replace(/_/g, ' ') }}
+                <button v-for="e in availableEmotions" :key="e.id" class="control-btn control-btn-emotion" @click="triggerEmotion(e)" :disabled="controlBusy" :title="e.desc">
+                  <span class="control-btn-emoji" v-if="e.emoji">{{ e.emoji }}</span>
+                  <span class="control-btn-label">{{ e.label }}</span>
+                  <span class="control-btn-desc">{{ e.desc }}</span>
                 </button>
               </div>
             </section>

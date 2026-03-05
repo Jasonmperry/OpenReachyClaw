@@ -55,8 +55,37 @@ createApp({
     let logInterval = null;
 
     // ---- Controls tab state ----
-    const availableDances = ref([]);
-    const availableEmotions = ref([]);
+    // Curated lists with descriptions from Reachy Mini docs
+    const DANCE_CATALOG = [
+      { id: 'jackson_square', label: 'Jackson Square', desc: 'Precision shoulder pops with sharp hits' },
+      { id: 'interwoven_spirals', label: 'Interwoven Spirals', desc: 'Layered, twisting spirals across axes' },
+      { id: 'polyrhythm_combo', label: 'Polyrhythm Combo', desc: 'Offset waves and counter-beats' },
+      { id: 'dizzy_spin', label: 'Dizzy Spin', desc: 'Slow antenna-flared spins' },
+      { id: 'groovy_sway_and_roll', label: 'Groovy Sway & Roll', desc: 'Flowing torso rolls with side sways' },
+      { id: 'pendulum_swing', label: 'Pendulum Swing', desc: 'Steady back-and-forth pendulum motion' },
+      { id: 'side_to_side_sway', label: 'Side-to-Side Sway', desc: 'Energetic lateral grooves' },
+      { id: 'grid_snap', label: 'Grid Snap', desc: 'Sharp, grid-aligned robotic accents' },
+      { id: 'stumble_and_recover', label: 'Stumble & Recover', desc: 'Playful trip-and-reset sequence' },
+      { id: 'chicken_peck', label: 'Chicken Peck', desc: 'Repetitive pecking head bops' },
+      { id: 'chin_lead', label: 'Chin Lead', desc: 'Smooth, chin-guided glides' },
+      { id: 'simple_nod', label: 'Simple Nod', desc: 'Continuous up-and-down nodding' },
+      { id: 'head_tilt_roll', label: 'Head Tilt Roll', desc: 'Continuous side-to-side head roll' },
+      { id: 'sharp_side_tilt', label: 'Sharp Side Tilt', desc: 'Quick side-to-side triangle tilt' },
+      { id: 'side_peekaboo', label: 'Side Peekaboo', desc: 'Multi-stage hiding and peeking' },
+      { id: 'neck_recoil', label: 'Neck Recoil', desc: 'Quick backward recoil' },
+      { id: 'side_glance_flick', label: 'Side Glance Flick', desc: 'Quick glance to the side with snap' },
+    ];
+    const EMOTION_CATALOG = [
+      { id: 'yeah_nod', label: 'Yeah Nod', emoji: '👍', desc: 'Enthusiastic up-down head bob' },
+      { id: 'uh_huh_tilt', label: 'Uh-Huh Tilt', emoji: '😊', desc: 'Bouncy side-to-side affirm' },
+      { id: 'simple_nod', label: 'Simple Nod', emoji: '✅', desc: 'Basic agreement dip' },
+      { id: 'sharp_side_tilt', label: 'Sharp Side Tilt', emoji: '🙃', desc: 'Quick angular lean' },
+      { id: 'side_glance_flick', label: 'Side Glance Flick', emoji: '👀', desc: 'Fast peek with snap' },
+      { id: 'neck_recoil', label: 'Neck Recoil', emoji: '😲', desc: 'Snappy pop-back surprise' },
+      { id: 'head_tilt_roll', label: 'Head Tilt Roll', emoji: '🤔', desc: 'Gentle looping curiosity' },
+    ];
+    const availableDances = ref(DANCE_CATALOG);
+    const availableEmotions = ref(EMOTION_CATALOG);
     const controlBusy = ref(false);
     const controlMessage = ref('');
     const controlMessageClass = ref('');
@@ -222,46 +251,58 @@ createApp({
 
     // ---- Controls: Dance, Emotion, Session ----
     async function fetchDances() {
+      // Try to get live list from server; fall back to catalog
       try {
         const data = await fetchJSON(`/control/dances?_=${Date.now()}`);
-        availableDances.value = data.moves || [];
-      } catch { availableDances.value = []; }
+        if (data.moves && data.moves.length) {
+          // Merge server moves with catalog descriptions
+          const catalogMap = Object.fromEntries(DANCE_CATALOG.map(d => [d.id, d]));
+          availableDances.value = data.moves.map(id => catalogMap[id] || { id, label: id.replace(/_/g, ' '), desc: '' });
+        }
+      } catch { /* keep catalog defaults */ }
     }
 
     async function fetchEmotions() {
       try {
         const data = await fetchJSON(`/control/emotions?_=${Date.now()}`);
-        availableEmotions.value = data.emotions || [];
-      } catch { availableEmotions.value = []; }
+        if (data.emotions && data.emotions.length) {
+          const catalogMap = Object.fromEntries(EMOTION_CATALOG.map(e => [e.id, e]));
+          availableEmotions.value = data.emotions.map(e => {
+            const name = e.name || e;
+            const cat = catalogMap[name];
+            return cat || { id: name, label: name.replace(/_/g, ' '), emoji: '', desc: e.description || '' };
+          });
+        }
+      } catch { /* keep catalog defaults */ }
     }
 
-    async function triggerDance(move) {
+    async function triggerDance(dance) {
       controlBusy.value = true;
-      controlMessage.value = `Dancing: ${move.replace(/_/g, ' ')}...`;
+      controlMessage.value = `Dancing: ${dance.label}...`;
       controlMessageClass.value = '';
       try {
         const data = await fetchJSON('/control/dance', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ move, repeat: 1 }),
+          body: JSON.stringify({ move: dance.id, repeat: 1 }),
         });
-        controlMessage.value = data.error ? data.error : `Queued: ${move.replace(/_/g, ' ')}`;
+        controlMessage.value = data.error ? data.error : `Queued: ${dance.label}`;
         controlMessageClass.value = data.error ? 'msg-error' : 'msg-ok';
-      } catch { controlMessage.value = 'Failed.'; controlMessageClass.value = 'msg-error'; }
+      } catch { controlMessage.value = 'Dance failed — is Rosie running?'; controlMessageClass.value = 'msg-error'; }
       finally { controlBusy.value = false; }
     }
 
     async function triggerEmotion(emotion) {
       controlBusy.value = true;
-      controlMessage.value = `Playing: ${emotion.replace(/_/g, ' ')}...`;
+      controlMessage.value = `Playing: ${emotion.label}...`;
       controlMessageClass.value = '';
       try {
         const data = await fetchJSON('/control/emotion', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ emotion }),
+          body: JSON.stringify({ emotion: emotion.id }),
         });
-        controlMessage.value = data.error ? data.error : `Queued: ${emotion.replace(/_/g, ' ')}`;
+        controlMessage.value = data.error ? data.error : `Queued: ${emotion.label}`;
         controlMessageClass.value = data.error ? 'msg-error' : 'msg-ok';
-      } catch { controlMessage.value = 'Failed.'; controlMessageClass.value = 'msg-error'; }
+      } catch { controlMessage.value = 'Emotion failed — is Rosie running?'; controlMessageClass.value = 'msg-error'; }
       finally { controlBusy.value = false; }
     }
 
@@ -284,7 +325,7 @@ createApp({
         const data = await fetchJSON('/control/restart', { method: 'POST' }, 15000);
         controlMessage.value = data.error ? data.error : 'Voice session restarted!';
         controlMessageClass.value = data.error ? 'msg-error' : 'msg-ok';
-      } catch { controlMessage.value = 'Restart failed.'; controlMessageClass.value = 'msg-error'; }
+      } catch { controlMessage.value = 'Restart failed — is Rosie running?'; controlMessageClass.value = 'msg-error'; }
       finally { controlBusy.value = false; }
     }
 

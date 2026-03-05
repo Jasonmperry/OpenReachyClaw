@@ -428,21 +428,39 @@ input::placeholder, textarea::placeholder { color: rgba(139,146,160,0.5); }
 
 .control-btn {
   font-family: var(--font-body);
-  font-size: 0.85rem;
-  font-weight: 500;
-  padding: 0.7rem 1rem;
+  padding: 0.8rem 1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.2s ease;
-  text-transform: capitalize;
   background: rgba(255, 255, 255, 0.03);
   color: var(--cool-gray);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  text-align: left;
+}
+.control-btn-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--white);
+}
+.control-btn-desc {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--gray);
+  line-height: 1.3;
+}
+.control-btn-emoji {
+  font-size: 1.4rem;
+  line-height: 1;
 }
 .control-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
+.control-btn:hover:not(:disabled) .control-btn-desc { color: var(--cool-gray); }
 .control-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -453,16 +471,16 @@ input::placeholder, textarea::placeholder { color: rgba(139,146,160,0.5); }
 .control-btn-dance:hover:not(:disabled) {
   background: rgba(0, 180, 216, 0.1);
   border-color: var(--aqua);
-  color: var(--aqua);
 }
+.control-btn-dance:hover:not(:disabled) .control-btn-label { color: var(--aqua); }
 .control-btn-emotion {
   border-color: rgba(230, 57, 70, 0.3);
 }
 .control-btn-emotion:hover:not(:disabled) {
   background: rgba(230, 57, 70, 0.1);
   border-color: var(--magenta);
-  color: var(--magenta);
 }
+.control-btn-emotion:hover:not(:disabled) .control-btn-label { color: var(--magenta); }
 
 /* Responsive */
 @media (max-width: 768px) {

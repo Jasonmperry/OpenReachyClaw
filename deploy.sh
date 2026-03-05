@@ -38,6 +38,16 @@ rsync $RSYNC_OPTS \
     "$JETSON:~/OpenReachyClaw/profiles/"
 
 echo ""
+echo "--- Deploying patch script ---"
+scp -q "$SCRIPT_DIR/patch_console.py" "$JETSON:~/OpenReachyClaw/patch_console.py"
+
+if [[ "$1" != "--dry-run" ]]; then
+    echo ""
+    echo "--- Patching control routes into conversation app ---"
+    ssh "$JETSON" "cd ~/OpenReachyClaw && python3 patch_console.py"
+fi
+
+echo ""
 echo "Deploy complete. Restart Rosie on Jetson to pick up changes."
 echo "  ssh $JETSON"
 echo "  cd ~/OpenReachyClaw && ./start_rosie.sh"
