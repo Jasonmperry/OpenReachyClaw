@@ -11,3 +11,14 @@ do_nothing
 # Our additions
 send_message_to_channel
 send_photo_to_channel
+nano_banana
+remember
+recall
+get_weather
+take_order
+list_orders
+web_search
+send_sms
+send_notification
+take_photo
+give_fortune
