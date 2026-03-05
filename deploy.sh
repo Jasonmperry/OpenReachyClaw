@@ -45,9 +45,17 @@ if [[ "$1" != "--dry-run" ]]; then
     echo ""
     echo "--- Patching control routes into conversation app ---"
     ssh "$JETSON" "cd ~/OpenReachyClaw && python3 patch_console.py"
+
+    echo ""
+    echo "--- Restarting Rosie ---"
+    # Kill existing conversation app (but leave the daemon running)
+    ssh "$JETSON" "pkill -f 'reachy_mini_conversation_app.main' 2>/dev/null || true"
+    sleep 2
+    # Start the conversation app in the background
+    ssh "$JETSON" "bash -c 'cd ~/reachy_mini_conversation_app && source ~/miniforge3/bin/activate rosie && nohup python3 -m reachy_mini_conversation_app.main > /tmp/rosie-conversation.log 2>&1 &'"
+    echo "Rosie restarted. Give it ~10 seconds to fully initialize."
+    echo "  Web UI: http://192.168.2.2:7860"
 fi
 
 echo ""
-echo "Deploy complete. Restart Rosie on Jetson to pick up changes."
-echo "  ssh $JETSON"
-echo "  cd ~/OpenReachyClaw && ./start_rosie.sh"
+echo "Deploy complete."

@@ -27,21 +27,11 @@
             <span class="topbar-title">Rosie</span>
           </div>
           <div class="topbar-right">
-            <!-- Connection status indicator -->
-            <span class="status-chip" :class="robotConnected ? 'chip-ok' : 'chip-off'">
-              <span class="status-dot" :class="robotConnected ? 'dot-on' : 'dot-off'"></span>
-              {{ robotConnected ? (robotAwake ? 'Awake' : 'Sleeping') : 'Disconnected' }}
-            </span>
-
-            <!-- Wake / Sleep toggle -->
-            <button class="topbar-btn" :class="robotAwake ? 'topbar-btn-sleep' : 'topbar-btn-wake'" @click="toggleSleepWake" :disabled="!robotConnected || sleepBusy" :title="robotAwake ? 'Put Rosie to sleep' : 'Wake Rosie up'">
-              {{ robotAwake ? 'Sleep' : 'Wake' }}
+            <button class="topbar-pill" :class="robotAwake ? 'pill-wake' : (robotConnected ? 'pill-sleep' : 'pill-off')" @click="toggleSleepWake" :disabled="!robotConnected || sleepBusy">
+              <span class="pill-dot" :class="robotConnected ? (robotAwake ? 'pdot-on' : 'pdot-sleep') : 'pdot-off'"></span>
+              <span class="pill-label">{{ robotConnected ? (robotAwake ? 'Awake' : 'Asleep') : 'Offline' }}</span>
             </button>
-
-            <!-- Refresh / Restart -->
-            <button class="topbar-btn topbar-btn-refresh" @click="restartSession" :disabled="!robotConnected || controlBusy" title="Restart voice session">
-              Restart
-            </button>
+            <button class="topbar-icon" @click="restartSession" :disabled="!robotConnected || controlBusy" title="Restart voice session">&#x21bb;</button>
           </div>
         </header>
 

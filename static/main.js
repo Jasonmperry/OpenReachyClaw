@@ -81,13 +81,95 @@ createApp({
       { id: 'side_glance_flick', label: 'Side Glance Flick', desc: 'Quick glance to the side with snap' },
     ];
     const EMOTION_CATALOG = [
-      { id: 'yeah_nod', label: 'Yeah Nod', emoji: '👍', desc: 'Enthusiastic up-down head bob' },
-      { id: 'uh_huh_tilt', label: 'Uh-Huh Tilt', emoji: '😊', desc: 'Bouncy side-to-side affirm' },
-      { id: 'simple_nod', label: 'Simple Nod', emoji: '✅', desc: 'Basic agreement dip' },
-      { id: 'sharp_side_tilt', label: 'Sharp Side Tilt', emoji: '🙃', desc: 'Quick angular lean' },
-      { id: 'side_glance_flick', label: 'Side Glance Flick', emoji: '👀', desc: 'Fast peek with snap' },
-      { id: 'neck_recoil', label: 'Neck Recoil', emoji: '😲', desc: 'Snappy pop-back surprise' },
-      { id: 'head_tilt_roll', label: 'Head Tilt Roll', emoji: '🤔', desc: 'Gentle looping curiosity' },
+      // Happy / Positive
+      { id: 'cheerful1', label: 'Cheerful', emoji: '😄', desc: 'Like whistling — happy about a proposal' },
+      { id: 'enthusiastic1', label: 'Enthusiastic', emoji: '🎉', desc: 'Celebrating incredible news' },
+      { id: 'enthusiastic2', label: 'Excited', emoji: '🙌', desc: 'Lighter excitement for good news' },
+      { id: 'dance1', label: 'Dance', emoji: '💃', desc: 'Happy dance moves' },
+      { id: 'dance2', label: 'Dance 2', emoji: '🕺', desc: 'Another dance for music' },
+      { id: 'dance3', label: 'Dance 3', emoji: '🪩', desc: 'Energetic wiggle moves' },
+      { id: 'success1', label: 'Success', emoji: '🏆', desc: 'Completed a task successfully' },
+      { id: 'success2', label: 'Celebrate', emoji: '🥳', desc: 'Celebrating an achievement' },
+      { id: 'proud1', label: 'Proud', emoji: '😎', desc: 'Looking around with satisfaction' },
+      { id: 'proud2', label: 'Proud 2', emoji: '👏', desc: 'Satisfied nod, like a yes' },
+      { id: 'proud3', label: 'Nailed It', emoji: '💪', desc: 'Yes, I did it!' },
+      { id: 'laughing1', label: 'Laugh', emoji: '😂', desc: 'Mimicking laughter at a joke' },
+      { id: 'laughing2', label: 'Chuckle', emoji: '🤭', desc: 'Lighter, gentle laugh' },
+      { id: 'loving1', label: 'Loving', emoji: '🥰', desc: 'Flattered by a compliment' },
+      { id: 'grateful1', label: 'Grateful', emoji: '🙏', desc: 'Expressing gratitude' },
+      // Agreement / Attention
+      { id: 'yes1', label: 'Yes', emoji: '✅', desc: 'Firm affirmative nod' },
+      { id: 'understanding1', label: 'Got It', emoji: '👍', desc: 'Nod showing understanding' },
+      { id: 'understanding2', label: 'Agree', emoji: '🤝', desc: 'Nod and agree' },
+      { id: 'attentive1', label: 'Listening', emoji: '👂', desc: 'Encouraging the speaker to continue' },
+      { id: 'attentive2', label: 'Listening 2', emoji: '🫡', desc: 'Continued active listening' },
+      { id: 'helpful1', label: 'Helpful', emoji: '🤗', desc: 'Happy to help or contribute' },
+      { id: 'helpful2', label: 'Thank You', emoji: '💕', desc: 'Grateful gesture' },
+      { id: 'welcoming1', label: 'Welcome', emoji: '👋', desc: 'Greeting someone warmly' },
+      { id: 'welcoming2', label: 'Welcome 2', emoji: '🫶', desc: 'Friendly hello or the pleasure is mine' },
+      { id: 'come1', label: 'Come Here', emoji: '🫳', desc: 'Inviting someone closer' },
+      // Thinking / Curious
+      { id: 'thoughtful1', label: 'Thinking', emoji: '🤔', desc: 'Looking up, searching for ideas' },
+      { id: 'thoughtful2', label: 'Pondering', emoji: '💭', desc: 'Contemplating a new idea' },
+      { id: 'curious1', label: 'Curious', emoji: '👀', desc: 'Looking around at everyone' },
+      { id: 'inquiring1', label: 'Tell Me More', emoji: '🧐', desc: 'Quick — need more details' },
+      { id: 'inquiring2', label: 'Hmm?', emoji: '❓', desc: 'Lighter questioning gesture' },
+      { id: 'inquiring3', label: 'Question', emoji: '✋', desc: 'Fast movement to ask a question' },
+      // Negative / Disagreement
+      { id: 'no1', label: 'No', emoji: '🚫', desc: 'Firm, categorical no' },
+      { id: 'no_excited1', label: 'No Way', emoji: '🙅', desc: 'Animated playful refusal' },
+      { id: 'no_sad1', label: 'Sad No', emoji: '😔', desc: 'Resigned, reluctant refusal' },
+      { id: 'yes_sad1', label: 'Sad Yes', emoji: '😞', desc: 'Melancholic agreement' },
+      { id: 'displeased1', label: 'Displeased', emoji: '😒', desc: 'Not satisfied with something' },
+      { id: 'displeased2', label: 'Disagree', emoji: '👎', desc: 'This doesn\'t suit me' },
+      { id: 'indifferent1', label: 'Meh', emoji: '🤷', desc: 'Light-hearted oh well' },
+      { id: 'resigned1', label: 'Resigned', emoji: '😮‍💨', desc: 'Grumpy OK, sad yes' },
+      // Surprise / Confusion
+      { id: 'amazed1', label: 'Amazed', emoji: '🤩', desc: 'Discovering something extraordinary' },
+      { id: 'surprised1', label: 'Surprised', emoji: '😲', desc: 'Reacting to something unexpected' },
+      { id: 'surprised2', label: 'Startled', emoji: '😱', desc: 'Looking up as if someone said boo' },
+      { id: 'confused1', label: 'Confused', emoji: '😵‍💫', desc: 'Don\'t know how to answer' },
+      { id: 'lost1', label: 'Lost', emoji: '🫠', desc: 'Unsure what to do' },
+      { id: 'incomprehensible2', label: 'Huh?', emoji: '🤨', desc: 'Don\'t understand the instruction' },
+      { id: 'oops1', label: 'Oops', emoji: '🫢', desc: 'Made a blunder' },
+      { id: 'oops2', label: 'Oh Right', emoji: '💡', desc: 'Ah yes, I forgot something' },
+      // Sad / Negative emotion
+      { id: 'sad1', label: 'Sad', emoji: '😢', desc: 'Very sad, starts whining' },
+      { id: 'sad2', label: 'Despair', emoji: '😭', desc: 'Deep sadness or disappointment' },
+      { id: 'downcast1', label: 'Downcast', emoji: '😞', desc: 'Discouraged or sad shake' },
+      { id: 'lonely1', label: 'Lonely', emoji: '🥺', desc: 'Feeling isolated, no one to talk to' },
+      { id: 'frustrated1', label: 'Frustrated', emoji: '😤', desc: 'Can\'t solve a problem' },
+      // Anger / Annoyance
+      { id: 'irritated1', label: 'Irritated', emoji: '😠', desc: 'Something doesn\'t suit you' },
+      { id: 'irritated2', label: 'Outraged', emoji: '🤬', desc: 'Scandalized and growling' },
+      { id: 'furious1', label: 'Furious', emoji: '😡', desc: 'Truly outraged, last resort' },
+      { id: 'contempt1', label: 'Contempt', emoji: '😏', desc: 'Perceiving disrespect' },
+      { id: 'impatient1', label: 'Impatient', emoji: '⏰', desc: 'Want things to move faster' },
+      { id: 'impatient2', label: 'Hurry Up', emoji: '🫸', desc: 'Stalling or disagreeing' },
+      { id: 'reprimand1', label: 'Scold', emoji: '🫵', desc: 'What\'s wrong with you?' },
+      { id: 'reprimand3', label: 'Silly!', emoji: '🤦', desc: 'Funny scolding for something silly' },
+      { id: 'go_away1', label: 'Go Away', emoji: '🖐️', desc: 'Don\'t want to talk anymore' },
+      { id: 'disgusted1', label: 'Disgusted', emoji: '🤮', desc: 'Offered food or worse, a drink' },
+      // Fear / Anxiety
+      { id: 'fear1', label: 'Fear', emoji: '😨', desc: 'Threatening or dangerous situation' },
+      { id: 'anxiety1', label: 'Anxious', emoji: '😰', desc: 'Looking around nervously' },
+      { id: 'scared1', label: 'Scared', emoji: '🫣', desc: 'Trembling all over' },
+      { id: 'uncomfortable1', label: 'Awkward', emoji: '😬', desc: 'Embarrassed, don\'t want to answer' },
+      { id: 'shy1', label: 'Shy', emoji: '☺️', desc: 'Reserve or embarrassment, blushing' },
+      // Tired / Calm
+      { id: 'boredom1', label: 'Bored', emoji: '🥱', desc: 'About to fall asleep, boring convo' },
+      { id: 'boredom2', label: 'Snoring', emoji: '😴', desc: 'So bored you start snoring' },
+      { id: 'sleep1', label: 'Sleepy', emoji: '💤', desc: 'Starting to fall asleep' },
+      { id: 'tired1', label: 'Tired', emoji: '🥱', desc: 'Yawning after working hard' },
+      { id: 'exhausted1', label: 'Exhausted', emoji: '😮‍💨', desc: 'Falling asleep from overwork' },
+      { id: 'calming1', label: 'Calming', emoji: '🧘', desc: 'Calming a stressed person' },
+      { id: 'serenity1', label: 'Serene', emoji: '😌', desc: 'Regaining inner peace' },
+      { id: 'relief1', label: 'Relief', emoji: '😅', desc: 'Stressful situation resolved' },
+      { id: 'relief2', label: 'Phew', emoji: '😊', desc: 'Calming mild annoyance' },
+      // Special
+      { id: 'dying1', label: 'Dying', emoji: '☠️', desc: 'Low battery, funny death simulation' },
+      { id: 'electric1', label: 'Electric', emoji: '⚡', desc: 'Jolt of electricity rising up' },
+      { id: 'rage1', label: 'Rage', emoji: '🔥', desc: 'Loud growl of injustice or anger' },
     ];
     const availableDances = ref(DANCE_CATALOG);
     const availableEmotions = ref(EMOTION_CATALOG);
@@ -130,21 +212,30 @@ createApp({
 
     // ---- Connection status polling ----
     async function checkRobotStatus() {
+      // Try the full control/status endpoint first (has sleep/wake info)
       try {
         const data = await fetchJSON(`/control/status?_=${Date.now()}`, {}, 3000);
         robotConnected.value = data.connected !== false;
         robotAwake.value = data.awake !== false;
+        return;
+      } catch { /* endpoint may not exist yet — fall back */ }
+
+      // Fall back: check /ready (returns tool info if handler is alive)
+      try {
+        const data = await fetchJSON(`/ready?_=${Date.now()}`, {}, 3000);
+        robotConnected.value = true;
+        robotAwake.value = data.ready !== false;
+        return;
+      } catch { /* try one more */ }
+
+      // Last resort: if /status responds, the server is up but we can't tell robot state
+      try {
+        await fetchJSON(`/status?_=${Date.now()}`, {}, 2000);
+        robotConnected.value = true;
+        robotAwake.value = true; // assume awake if server is up
       } catch {
-        // If we can reach the server at all (status endpoint), mark as connected but unknown state
-        try {
-          await fetchJSON(`/status?_=${Date.now()}`, {}, 2000);
-          robotConnected.value = true;
-          // If /control/status doesn't exist yet, assume awake
-          robotAwake.value = true;
-        } catch {
-          robotConnected.value = false;
-          robotAwake.value = false;
-        }
+        robotConnected.value = false;
+        robotAwake.value = false;
       }
     }
 

@@ -76,37 +76,44 @@ body {
   text-transform: uppercase; border: 1px solid var(--border); color: var(--gray);
 }
 .chip-ok { background: rgba(0,180,216,0.12); border-color: rgba(0,180,216,0.4); color: var(--aqua); }
-.chip-off { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.15); color: var(--gray); opacity: 0.7; }
 .chip-warn { background: rgba(230,57,70,0.12); border-color: rgba(230,57,70,0.4); color: var(--magenta); }
 
-/* Connection dot */
-.status-dot {
-  display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 0.4rem;
-}
-.dot-on { background: var(--aqua); box-shadow: 0 0 6px var(--aqua); }
-.dot-off { background: var(--gray); opacity: 0.5; }
-
-/* Top bar buttons */
+/* Top-bar controls */
 .topbar-right { display: flex; align-items: center; gap: 0.5rem; }
-.topbar-btn {
-  padding: 0.3rem 0.7rem; border-radius: var(--radius-md);
-  font-family: var(--font-mono); font-size: 0.65rem; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.04em; cursor: pointer;
-  transition: all 0.2s ease; border: 1px solid;
+
+/* Status pill — clickable wake/sleep toggle */
+.topbar-pill {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  padding: 0.35rem 0.85rem; border-radius: var(--radius-full);
+  font-family: var(--font-mono); font-size: 0.68rem; font-weight: 600;
+  letter-spacing: 0.03em; text-transform: uppercase;
+  cursor: pointer; border: 1px solid; transition: all 0.25s ease;
 }
-.topbar-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-.topbar-btn-wake {
-  background: rgba(0,180,216,0.15); border-color: rgba(0,180,216,0.5); color: var(--aqua);
+.topbar-pill:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.pill-wake { background: rgba(0,180,216,0.1); border-color: rgba(0,180,216,0.35); color: var(--aqua); }
+.pill-wake:hover:not(:disabled) { background: rgba(0,180,216,0.18); border-color: var(--aqua); }
+.pill-sleep { background: rgba(255,181,71,0.08); border-color: rgba(255,181,71,0.3); color: #e0a040; }
+.pill-sleep:hover:not(:disabled) { background: rgba(255,181,71,0.16); border-color: #e0a040; }
+.pill-off { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.1); color: var(--gray); opacity: 0.6; }
+
+.pill-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.pdot-on { background: var(--aqua); box-shadow: 0 0 6px rgba(0,180,216,0.7); }
+.pdot-sleep { background: #e0a040; box-shadow: 0 0 5px rgba(255,181,71,0.5); }
+.pdot-off { background: var(--gray); opacity: 0.4; }
+
+.pill-label { line-height: 1; }
+
+/* Restart icon button */
+.topbar-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+  color: var(--cool-gray); font-size: 1rem; cursor: pointer;
+  transition: all 0.2s ease;
 }
-.topbar-btn-wake:hover:not(:disabled) { background: rgba(0,180,216,0.25); }
-.topbar-btn-sleep {
-  background: rgba(255,181,71,0.12); border-color: rgba(255,181,71,0.4); color: #ffb547;
-}
-.topbar-btn-sleep:hover:not(:disabled) { background: rgba(255,181,71,0.22); }
-.topbar-btn-refresh {
-  background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.15); color: var(--cool-gray);
-}
-.topbar-btn-refresh:hover:not(:disabled) { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3); }
+.topbar-icon:hover:not(:disabled) { background: rgba(0,180,216,0.1); border-color: rgba(0,180,216,0.3); color: var(--aqua); }
+.topbar-icon:disabled { opacity: 0.25; cursor: not-allowed; }
 
 /* Status banners */
 .status-banner {
