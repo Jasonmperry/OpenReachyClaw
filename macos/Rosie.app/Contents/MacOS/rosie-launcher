@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# ═══════════════════════════════════════════════════
+# Rosie.app launcher — macOS .app wrapper for mic/camera permissions
+#
+# This runs as a proper macOS application so that Privacy & Security
+# shows "Rosie" in the Microphone and Camera permission lists,
+# instead of requiring blanket Terminal access.
+#
+# Usage:
+#   Double-click Rosie.app, or:
+#   open macos/Rosie.app
+#   ROSIE_HOME=/path/to/OpenReachyClaw open macos/Rosie.app
+# ═══════════════════════════════════════════════════
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_DIR="$(cd "$APP_DIR/.." && pwd)"
+
+# Find the OpenReachyClaw repo root:
+#   1. If launched from the repo's macos/ directory, REPO_DIR is correct
+#   2. If ROSIE_HOME env var is set, use that
+#   3. Try common locations
+if [[ -f "$REPO_DIR/.env" || -f "$REPO_DIR/pyproject.toml" ]]; then
+    ROSIE_HOME="$REPO_DIR"
+elif [[ -n "$ROSIE_HOME" ]]; then
+    : # use env var
+else
+    for d in \
+        "$HOME/Development/github/OpenReachyClaw" \
+        "$HOME/OpenReachyClaw" \
+        "$HOME/Projects/OpenReachyClaw"; do
+        if [[ -d "$d" ]]; then
+            ROSIE_HOME="$d"
+            break
+        fi
+    done
+fi
+
+if [[ -z "$ROSIE_HOME" || ! -d "$ROSIE_HOME" ]]; then
+    osascript -e 'display dialog "Cannot find OpenReachyClaw directory.\n\nSet ROSIE_HOME environment variable or clone the repo:\n\ngit clone https://github.com/jasonmperry/OpenReachyClaw" buttons {"OK"} default button "OK" with icon stop with title "Rosie"'
+    exit 1
+fi
+
+cd "$ROSIE_HOME"
+
+# Load .env (API keys, model config, etc.)
+if [[ -f .env ]]; then
+    set -a
+    source .env
+    set +a
+fi
+
+# Find Python 3.12 (preferred) or fall back
+PYTHON=""
+for p in python3.12 python3.11 python3.13 python3; do
+    if command -v "$p" &>/dev/null; then
+        PYTHON="$p"
+        break
+    fi
+done
+
+if [[ -z "$PYTHON" ]]; then
+    osascript -e 'display dialog "Python 3.12+ not found.\n\nInstall via:\n  brew install python@3.12" buttons {"OK"} default button "OK" with icon stop with title "Rosie"'
+    exit 1
+fi
+
+# Create venv if needed (first-time setup)
+VENV_DIR="$ROSIE_HOME/.venv"
+if [[ ! -d "$VENV_DIR" ]]; then
+    osascript -e 'display notification "Creating Python environment..." with title "Rosie" subtitle "First-time setup"'
+    "$PYTHON" -m venv "$VENV_DIR"
+    "$VENV_DIR/bin/pip" install --quiet --upgrade pip
+    "$VENV_DIR/bin/pip" install --quiet -e "$ROSIE_HOME"
+fi
+
+# Activate venv
+source "$VENV_DIR/bin/activate"
+
+# Ensure the conversation app package is installed
+if ! python -c "import reachy_mini_conversation_app" 2>/dev/null; then
+    osascript -e 'display notification "Installing Reachy Mini dependencies..." with title "Rosie" subtitle "This may take a minute"'
+    pip install --quiet -e "$ROSIE_HOME"
+fi
+
+# Export tool/profile paths for the conversation app
+export REACHY_MINI_CUSTOM_PROFILE="${REACHY_MINI_CUSTOM_PROFILE:-rosie}"
+export REACHY_MINI_EXTERNAL_PROFILES_DIRECTORY="${REACHY_MINI_EXTERNAL_PROFILES_DIRECTORY:-$ROSIE_HOME/profiles}"
+export REACHY_MINI_EXTERNAL_TOOLS_DIRECTORY="${REACHY_MINI_EXTERNAL_TOOLS_DIRECTORY:-$ROSIE_HOME/openreachyclaw/tools}"
+export AUTOLOAD_EXTERNAL_TOOLS=1
+
+# Banner
+LOG_FILE="/tmp/rosie-mac.log"
+echo ""
+echo "╔══════════════════════════════════════╗"
+echo "║     🤖 Rosie — PerryLabs Robot      ║"
+echo "╚══════════════════════════════════════╝"
+echo ""
+echo "  Home:     $ROSIE_HOME"
+echo "  Python:   $(which python) ($(python --version 2>&1))"
+echo "  Profile:  $REACHY_MINI_CUSTOM_PROFILE"
+echo "  Tools:    $REACHY_MINI_EXTERNAL_TOOLS_DIRECTORY"
+echo "  Web UI:   http://localhost:8000"
+echo "  Log:      $LOG_FILE"
+echo ""
+
+# Run the conversation app — this is the main entry point
+# Pipe to tee so logs are saved to /tmp for debugging
+python -m reachy_mini_conversation_app 2>&1 | tee "$LOG_FILE"
