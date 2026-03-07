@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rosie — PerryLabs Control Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;900&family=Roboto+Flex:wght@300;400;500;600&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <div class="orb orb-aqua"></div>
+    <div class="orb orb-magenta"></div>
+
+    <div id="app">
+      <div v-if="loading" class="loader">
+        <div class="spinner"></div>
+        <p class="loader-brand">PerryLabs</p>
+        <p class="loader-sub">Initializing Rosie&hellip;</p>
+      </div>
+
+      <div v-else class="shell">
+        <header class="topbar">
+          <div class="topbar-left">
+            <img src="/static/perrylabs_logo.png" alt="PerryLabs" class="logo" />
+            <span class="topbar-title">Rosie</span>
+          </div>
+          <div class="topbar-right">
+            <button class="topbar-pill" :class="robotAwake ? 'pill-wake' : (robotConnected ? 'pill-sleep' : 'pill-off')" @click="toggleSleepWake" :disabled="!robotConnected || sleepBusy">
+              <span class="pill-dot" :class="robotConnected ? (robotAwake ? 'pdot-on' : 'pdot-sleep') : 'pdot-off'"></span>
+              <span class="pill-label">{{ robotConnected ? (robotAwake ? 'Awake' : 'Asleep') : 'Offline' }}</span>
+            </button>
+            <button class="topbar-icon" @click="restartSession" :disabled="!robotConnected || controlBusy" title="Restart voice session">&#x21bb;</button>
+          </div>
+        </header>
+
+        <nav class="tab-bar">
+          <button v-for="tab in tabs" :key="tab.id" class="tab-btn" :class="{ active: activeTab === tab.id }" @click="activeTab = tab.id">{{ tab.label }}</button>
+        </nav>
+
+        <main class="content">
+
+          <!-- =============== LIVE =============== -->
+          <div v-show="activeTab === 'live'">
+            <div class="page-header">
+              <p class="kicker">Camera</p>
+              <h1>Live<span class="dot">.</span></h1>
+            </div>
+
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Feed</p><h2>Camera Stream</h2></div>
+                <span class="tag tag-ok">Live</span>
+              </div>
+              <div class="camera-container">
+                <img :src="cameraStreamUrl" alt="Live Camera Feed" class="camera-feed" @error="cameraError = true" @load="cameraError = false" />
+                <div v-if="cameraError" class="camera-offline">Camera offline</div>
+              </div>
+              <div class="actions" style="margin-top: 1rem;">
+                <button class="btn-primary" @click="takePhoto" :disabled="generatingImage">Take Photo</button>
+                <div class="style-input-group">
+                  <input type="text" v-model="stylePrompt" placeholder="e.g. make me look like a cartoon" class="style-input" @keyup.enter="applyStyle" />
+                  <button class="btn-primary" @click="applyStyle" :disabled="generatingImage || !stylePrompt.trim()">
+                    {{ generatingImage ? 'Generating...' : 'Nano Banana' }}
+                  </button>
+                </div>
+              </div>
+              <span v-if="liveMessage" class="action-msg" :class="liveMessageClass" style="margin-top: 0.5rem; display: block;">{{ liveMessage }}</span>
+            </section>
+
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Gallery</p><h2>Generated Images</h2></div>
+                <span class="tag tag-ok">{{ galleryImages.length }} images</span>
+              </div>
+              <div v-if="!galleryImages.length" class="body-text">No generated images yet. Use &ldquo;Nano Banana&rdquo; to create one!</div>
+              <div v-else class="gallery-grid">
+                <div v-for="img in galleryImages" :key="img.filename" class="gallery-thumb" @click="openImage(img)">
+                  <img :src="'/nanobanan/images/' + img.filename" :alt="img.filename" />
+                  <div class="gallery-thumb-name">{{ img.filename }}</div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Image modal -->
+            <div v-if="modalImage" class="modal-overlay" @click="modalImage = null">
+              <div class="modal-content" @click.stop>
+                <button class="modal-close" @click="modalImage = null">&times;</button>
+                <img :src="'/nanobanan/images/' + modalImage.filename" :alt="modalImage.filename" class="modal-image" />
+                <p class="modal-caption">{{ modalImage.filename }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- =============== CONTROLS =============== -->
+          <div v-show="activeTab === 'controls'">
+            <div class="page-header">
+              <p class="kicker">Robot</p>
+              <h1>Controls<span class="dot">.</span></h1>
+            </div>
+
+            <!-- Status banner when disconnected -->
+            <div v-if="!robotConnected" class="status-banner status-banner-off">
+              Rosie is not connected. Check USB and restart the daemon.
+            </div>
+            <div v-else-if="!robotAwake" class="status-banner status-banner-sleep">
+              Rosie is sleeping. Press <strong>Wake</strong> in the header to start.
+            </div>
+
+            <!-- Session controls -->
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Session</p><h2>Voice Session</h2></div>
+              </div>
+              <p class="body-text">Manage the OpenAI Realtime voice session. Sessions auto-expire after 60 minutes.</p>
+              <div class="actions">
+                <button class="btn-primary" @click="restartSession" :disabled="controlBusy || !robotConnected">Restart Session</button>
+                <button class="btn-ghost" @click="stopAll" :disabled="!robotConnected">Stop All Movement</button>
+                <span v-if="controlMessage" class="action-msg" :class="controlMessageClass">{{ controlMessage }}</span>
+              </div>
+            </section>
+
+            <!-- Dances -->
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Movement</p><h2>Dance Moves</h2></div>
+                <span class="tag tag-ok">{{ availableDances.length }} moves</span>
+              </div>
+              <p class="body-text">Tap a move to make Rosie dance! Movements use her 6-DoF head, 360&deg; body rotation, and animated antennas.</p>
+              <div class="control-grid">
+                <button v-for="d in availableDances" :key="d.id" class="control-btn control-btn-dance" @click="triggerDance(d)" :disabled="controlBusy || !robotConnected" :title="d.desc">
+                  <span class="control-btn-label">{{ d.label }}</span>
+                  <span class="control-btn-desc">{{ d.desc }}</span>
+                </button>
+              </div>
+            </section>
+
+            <!-- Emotions -->
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Expression</p><h2>Emoji Reactions</h2></div>
+                <span class="tag tag-ok">{{ availableEmotions.length }} reactions</span>
+              </div>
+              <p class="body-text">Trigger snappy, personality-driven gestures &mdash; like emojis, but with a robot body.</p>
+              <div class="control-grid">
+                <button v-for="e in availableEmotions" :key="e.id" class="control-btn control-btn-emotion" @click="triggerEmotion(e)" :disabled="controlBusy || !robotConnected" :title="e.desc">
+                  <span class="control-btn-emoji" v-if="e.emoji">{{ e.emoji }}</span>
+                  <span class="control-btn-label">{{ e.label }}</span>
+                  <span class="control-btn-desc">{{ e.desc }}</span>
+                </button>
+              </div>
+            </section>
+          </div>
+
+          <!-- =============== SETTINGS =============== -->
+          <div v-show="activeTab === 'settings'">
+            <div class="page-header">
+              <p class="kicker">Configuration</p>
+              <h1>Settings<span class="dot">.</span></h1>
+            </div>
+
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Credentials</p><h2>OpenAI API Key</h2></div>
+                <span class="tag" :class="hasKey ? 'tag-ok' : ''">{{ hasKey ? 'Active' : 'Required' }}</span>
+              </div>
+              <div v-if="!showKeyForm && hasKey">
+                <p class="body-text">API key is configured and active.</p>
+                <button class="btn-ghost" @click="showKeyForm = true">Change Key</button>
+              </div>
+              <div v-else>
+                <p class="body-text">Paste your OpenAI API key to enable the voice pipeline.</p>
+                <div class="field-group">
+                  <label for="api-key">API Key</label>
+                  <input id="api-key" type="password" placeholder="sk-..." v-model="apiKeyInput" :class="{ 'input-error': keyError }" @input="keyError = false" />
+                </div>
+                <div class="actions">
+                  <button class="btn-primary" @click="saveApiKey" :disabled="savingKey">{{ savingKey ? 'Validating...' : 'Save Key' }}</button>
+                  <button v-if="hasKey" class="btn-ghost" @click="showKeyForm = false">Cancel</button>
+                  <span v-if="keyMessage" class="action-msg" :class="keyMessageClass">{{ keyMessage }}</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="card" v-if="hasKey">
+              <div class="card-header">
+                <div><p class="kicker">Active Profile</p><h2>Profile &amp; Voice</h2></div>
+              </div>
+              <div class="field-row">
+                <div class="field-group">
+                  <label>Profile</label>
+                  <div class="row-controls">
+                    <select v-model="selectedProfile" @change="loadProfile">
+                      <option v-for="c in choices" :key="c" :value="c">{{ c }}</option>
+                    </select>
+                    <button class="btn-ghost" @click="applyProfile(false)">Apply</button>
+                    <button class="btn-ghost" @click="applyProfile(true)">Set Startup</button>
+                  </div>
+                </div>
+                <div class="field-group">
+                  <label>Voice</label>
+                  <select v-model="profileVoice">
+                    <option v-for="v in voices" :key="v" :value="v">{{ v }}</option>
+                  </select>
+                </div>
+              </div>
+              <div class="startup-row" v-if="startupProfile">
+                <span class="tag tag-sm tag-ok">Startup: {{ startupProfile }}</span>
+              </div>
+              <span v-if="settingsMessage" class="action-msg" :class="settingsMessageClass">{{ settingsMessage }}</span>
+            </section>
+          </div>
+
+          <!-- =============== PERSONALITY =============== -->
+          <div v-show="activeTab === 'personality'">
+            <div class="page-header">
+              <p class="kicker">Identity</p>
+              <h1>Personality<span class="dot">.</span></h1>
+            </div>
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Editor</p><h2>System Instructions</h2></div>
+              </div>
+              <div class="field-group">
+                <label for="profile-name">Profile Name</label>
+                <input id="profile-name" type="text" v-model="profileName" placeholder="rosie" />
+              </div>
+              <div class="field-group">
+                <label for="instructions">Instructions</label>
+                <textarea id="instructions" rows="18" v-model="profileInstructions" placeholder="System prompt — who is Rosie?"></textarea>
+              </div>
+              <div class="actions">
+                <button class="btn-primary" @click="saveProfile" :disabled="savingProfile">{{ savingProfile ? 'Saving...' : 'Save &amp; Apply' }}</button>
+                <button class="btn-ghost" @click="newProfile">+ New Profile</button>
+                <span v-if="profileMessage" class="action-msg" :class="profileMessageClass">{{ profileMessage }}</span>
+              </div>
+            </section>
+          </div>
+
+          <!-- =============== TOOLS =============== -->
+          <div v-show="activeTab === 'tools'">
+            <div class="page-header">
+              <p class="kicker">Capabilities</p>
+              <h1>Tools &amp; Skills<span class="dot">.</span></h1>
+            </div>
+
+            <!-- Enable/Disable FIRST -->
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Profile</p><h2>Enable / Disable Tools</h2></div>
+                <span class="tag tag-ok">{{ allTools.length }} available</span>
+              </div>
+              <p class="body-text">Toggle tools for the active profile. Changes update tools.txt.</p>
+              <div class="tool-grid">
+                <label v-for="t in allTools" :key="t" class="tool-chip" :class="{ active: enabledTools.has(t) }">
+                  <input type="checkbox" :checked="enabledTools.has(t)" @change="toggleTool(t)" />
+                  <span>{{ t }}</span>
+                </label>
+              </div>
+              <div class="field-group" style="margin-top: 1rem;">
+                <label for="tools-txt">tools.txt</label>
+                <textarea id="tools-txt" rows="5" v-model="profileToolsText"></textarea>
+              </div>
+              <div class="actions">
+                <button class="btn-primary" @click="saveProfile" :disabled="savingProfile">{{ savingProfile ? 'Saving...' : 'Save Tools' }}</button>
+                <span v-if="profileMessage" class="action-msg" :class="profileMessageClass">{{ profileMessage }}</span>
+              </div>
+            </section>
+
+            <!-- Registered tools SECOND -->
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Runtime</p><h2>Registered Tools</h2></div>
+                <span class="tag tag-ok">{{ registeredTools.length }} loaded</span>
+              </div>
+              <div class="tool-list">
+                <div v-for="t in registeredTools" :key="t.name" class="tool-item">
+                  <div class="tool-name">{{ t.name }}</div>
+                  <div class="tool-desc">{{ t.description }}</div>
+                </div>
+                <p v-if="!registeredTools.length" class="body-text">No tools loaded.</p>
+              </div>
+            </section>
+          </div>
+
+          <!-- =============== LOGS =============== -->
+          <div v-show="activeTab === 'logs'">
+            <div class="page-header">
+              <p class="kicker">Debug</p>
+              <h1>Logs<span class="dot">.</span></h1>
+            </div>
+
+            <!-- Conversation log -->
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Conversation</p><h2>Messages</h2></div>
+                <div class="actions" style="margin-top:0">
+                  <button class="btn-ghost" @click="fetchLogs">Refresh</button>
+                  <label class="tool-chip" :class="{ active: autoRefreshLogs }" style="margin:0">
+                    <input type="checkbox" v-model="autoRefreshLogs" @change="toggleLogRefresh" />
+                    <span>Auto</span>
+                  </label>
+                </div>
+              </div>
+              <div class="log-messages" ref="logMessages">
+                <div v-if="!parsedMessages.length" class="log-empty">No conversation data yet. Talk to Rosie!</div>
+                <div v-for="(msg, i) in parsedMessages" :key="i" class="log-msg" :class="'log-' + msg.type">
+                  <div class="log-msg-header">
+                    <span class="log-msg-role">{{ msg.role }}</span>
+                    <span class="log-msg-time">{{ msg.time }}</span>
+                  </div>
+                  <div class="log-msg-body">{{ msg.text }}</div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Raw log -->
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">System</p><h2>Application Log</h2></div>
+              </div>
+              <div class="log-container">
+                <pre class="log-output" ref="logOutput">{{ logText || 'Click Refresh to load...' }}</pre>
+              </div>
+            </section>
+          </div>
+        </main>
+
+        <footer class="footer">
+          <p>Built by <strong>PerryLabs</strong> &mdash; Baltimore, MD</p>
+        </footer>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="/static/main.js"></script>
+  </body>
+</html>

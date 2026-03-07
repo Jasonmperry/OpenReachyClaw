@@ -1,0 +1,17 @@
+webhook:
+  callback_url: "http://localhost:8100/incoming"
+
+channels:
+  slack:
+    enabled: true
+    # Uses Socket Mode — no public URL needed.
+    # Set SLACK_APP_TOKEN and SLACK_BOT_TOKEN in OpenClaw's environment.
+
+  # discord:
+  #   enabled: false
+
+  # telegram:
+  #   enabled: false
+
+  # email:
+  #   enabled: false

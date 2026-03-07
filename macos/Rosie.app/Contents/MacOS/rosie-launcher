@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# ═══════════════════════════════════════════════════
+# Rosie.app launcher — macOS .app wrapper for mic/camera permissions
+#
+# This runs as a proper macOS application so that Privacy & Security
+# shows "Rosie" in the Microphone and Camera permission lists,
+# instead of requiring blanket Terminal access.
+#
+# Usage:
+#   Double-click Rosie.app, or:
+#   open macos/Rosie.app
+#   ROSIE_HOME=/path/to/OpenReachyClaw open macos/Rosie.app
+# ═══════════════════════════════════════════════════
+
+set -e
+
+# macOS .app bundles don't inherit the user's shell PATH.
+# Add Homebrew and common Python install locations so we can find python3.12.
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:$PATH"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_DIR="$(cd "$APP_DIR/.." && pwd)"
+
+# Find the OpenReachyClaw repo root:
+#   1. If launched from the repo's macos/ directory, REPO_DIR is correct
+#   2. If ROSIE_HOME env var is set, use that
+#   3. Try common locations
+if [[ -f "$REPO_DIR/.env" || -f "$REPO_DIR/pyproject.toml" ]]; then
+    ROSIE_HOME="$REPO_DIR"
+elif [[ -n "$ROSIE_HOME" ]]; then
+    : # use env var
+else
+    for d in \
+        "$HOME/Development/github/OpenReachyClaw" \
+        "$HOME/OpenReachyClaw" \
+        "$HOME/Projects/OpenReachyClaw"; do
+        if [[ -d "$d" ]]; then
+            ROSIE_HOME="$d"
+            break
+        fi
+    done
+fi
+
+if [[ -z "$ROSIE_HOME" || ! -d "$ROSIE_HOME" ]]; then
+    osascript -e 'display dialog "Cannot find OpenReachyClaw directory.\n\nSet ROSIE_HOME environment variable or clone the repo:\n\ngit clone https://github.com/jasonmperry/OpenReachyClaw" buttons {"OK"} default button "OK" with icon stop with title "Rosie"'
+    exit 1
+fi
+
+cd "$ROSIE_HOME"
+
+# Load .env (API keys, model config, etc.)
+if [[ -f .env ]]; then
+    set -a
+    source .env
+    set +a
+fi
+
+# Find Python 3.12 (preferred) or fall back — skip system 3.9
+PYTHON=""
+for p in python3.12 python3.11 python3.13; do
+    if command -v "$p" &>/dev/null; then
+        PYTHON="$(command -v "$p")"
+        break
+    fi
+done
+
+# Last resort: check if bare python3 is >= 3.10
+if [[ -z "$PYTHON" ]] && command -v python3 &>/dev/null; then
+    PY3_VER="$(python3 -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo 0)"
+    if [[ "$PY3_VER" -ge 10 ]]; then
+        PYTHON="$(command -v python3)"
+    fi
+fi
+
+if [[ -z "$PYTHON" ]]; then
+    osascript -e 'display dialog "Python 3.10+ not found.\n\nInstall via:\n  brew install python@3.12" buttons {"OK"} default button "OK" with icon stop with title "Rosie"'
+    exit 1
+fi
+
+# Create venv if needed (first-time setup)
+VENV_DIR="$ROSIE_HOME/.venv"
+if [[ ! -d "$VENV_DIR" ]]; then
+    osascript -e 'display notification "Creating Python environment with '"$("$PYTHON" --version 2>&1)"'..." with title "Rosie" subtitle "First-time setup — this may take a few minutes"'
+    "$PYTHON" -m venv "$VENV_DIR"
+    "$VENV_DIR/bin/pip" install --upgrade pip
+    "$VENV_DIR/bin/pip" install -e "$ROSIE_HOME"
+fi
+
+# Activate venv
+source "$VENV_DIR/bin/activate"
+
+# Ensure the conversation app package is installed
+if ! python -c "import reachy_mini_conversation_app" 2>/dev/null; then
+    osascript -e 'display notification "Installing Reachy Mini dependencies..." with title "Rosie" subtitle "This may take a minute"'
+    pip install -e "$ROSIE_HOME"
+fi
+
+# Set the profile name
+export REACHY_MINI_CUSTOM_PROFILE="${REACHY_MINI_CUSTOM_PROFILE:-rosie}"
+PROFILE="$REACHY_MINI_CUSTOM_PROFILE"
+
+# ── Symlink our profile + tools into the installed conversation app ──
+# The conversation app loads profiles/tools from inside its own package,
+# not from external directories. We symlink ours in so it finds them.
+SITE_PKG="$VENV_DIR/lib/python3.12/site-packages/reachy_mini_conversation_app"
+# Find site-packages dynamically in case of different Python minor versions
+if [[ ! -d "$SITE_PKG" ]]; then
+    SITE_PKG="$(python -c 'import reachy_mini_conversation_app as m; import os; print(os.path.dirname(m.__file__))' 2>/dev/null)"
+fi
+
+if [[ -d "$SITE_PKG" ]]; then
+    # Symlink our profile (rosie) into the package's profiles directory
+    PROFILES_TARGET="$SITE_PKG/profiles/$PROFILE"
+    if [[ ! -e "$PROFILES_TARGET" ]]; then
+        ln -sfn "$ROSIE_HOME/profiles/$PROFILE" "$PROFILES_TARGET"
+        echo "  Linked profile: $PROFILE → $PROFILES_TARGET"
+    fi
+
+    # Symlink our custom tools into the package's tools directory
+    TOOLS_SRC="$ROSIE_HOME/openreachyclaw/tools"
+    TOOLS_TARGET="$SITE_PKG/tools"
+    if [[ -d "$TOOLS_SRC" && -d "$TOOLS_TARGET" ]]; then
+        for tool_file in "$TOOLS_SRC"/*.py; do
+            tool_basename="$(basename "$tool_file")"
+            [[ "$tool_basename" == "__init__.py" ]] && continue
+            if [[ ! -e "$TOOLS_TARGET/$tool_basename" ]]; then
+                ln -sfn "$tool_file" "$TOOLS_TARGET/$tool_basename"
+                echo "  Linked tool: $tool_basename"
+            fi
+        done
+    fi
+fi
+
+# Banner
+LOG_FILE="/tmp/rosie-mac.log"
+echo ""
+echo "╔══════════════════════════════════════╗"
+echo "║     🤖 Rosie — PerryLabs Robot      ║"
+echo "╚══════════════════════════════════════╝"
+echo ""
+echo "  Home:     $ROSIE_HOME"
+echo "  Python:   $(which python) ($(python --version 2>&1))"
+echo "  Profile:  $PROFILE"
+echo "  Tools:    $ROSIE_HOME/openreachyclaw/tools"
+echo "  Web UI:   http://localhost:8000"
+echo "  Log:      $LOG_FILE"
+echo ""
+
+# Open the web UI in the default browser after a short delay
+(sleep 4 && open "http://localhost:8000") &
+
+# Run the conversation app — use the installed console script entry point
+# (python -m doesn't work because the package has no __main__.py)
+reachy-mini-conversation-app 2>&1 | tee "$LOG_FILE"

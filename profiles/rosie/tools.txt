@@ -1,0 +1,22 @@
+# Pollen built-in tools (module names from reachy_mini_conversation_app.tools)
+dance
+stop_dance
+play_emotion
+stop_emotion
+camera
+head_tracking
+move_head
+do_nothing
+
+# OpenReachyClaw custom tools (module names from openreachyclaw/tools/)
+# Each module may register multiple tools (e.g. remember → remember + recall)
+notify
+nano_banana
+remember
+weather
+take_order
+web_search
+send_sms
+send_notification
+take_photo
+horoscope

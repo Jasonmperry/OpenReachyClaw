@@ -1,0 +1,12 @@
+services:
+  openclaw:
+    image: openclaw/gateway:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./openclaw.config.yml:/app/config.yml
+    environment:
+      - WEBHOOK_CALLBACK_URL=http://host.docker.internal:8100/incoming
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
