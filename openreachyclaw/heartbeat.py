@@ -35,6 +35,7 @@ IDLE_TIMEOUT_S = 30.0          # Seconds after last interaction before idle beha
 LOOK_INTERVAL_RANGE = (15, 30) # Seconds between random head movements
 CURIOSITY_INTERVAL_RANGE = (45, 90)   # Seconds between subtle emotion plays
 PRESENCE_CHECK_RANGE = (30, 60)       # Seconds between camera presence checks
+CONVERSATION_TRACK_RANGE = (3, 8)     # Seconds between tracking glances during conversation
 
 # Head movement limits (degrees).  Keep movements small and natural.
 PAN_RANGE = (-25, 25)
@@ -42,6 +43,10 @@ TILT_RANGE = (-10, 15)
 
 # Subtle emotions suitable for idle state (nothing dramatic).
 IDLE_EMOTIONS = ("curious", "thoughtful", "attentive")
+
+# Conversation tracking — small head adjustments to look at the speaker.
+CONVERSATION_TRACK_PAN = (-8, 8)
+CONVERSATION_TRACK_TILT = (-4, 6)
 
 # ---------------------------------------------------------------------------
 # Predefined look patterns
@@ -212,6 +217,7 @@ class IdleBehavior:
         next_look = time.monotonic() + random.uniform(*LOOK_INTERVAL_RANGE)
         next_emotion = time.monotonic() + random.uniform(*CURIOSITY_INTERVAL_RANGE)
         next_presence = time.monotonic() + random.uniform(*PRESENCE_CHECK_RANGE)
+        next_track = time.monotonic() + random.uniform(*CONVERSATION_TRACK_RANGE)
 
         try:
             while not self._stop_event.is_set():
@@ -232,8 +238,12 @@ class IdleBehavior:
                         idle_elapsed,
                     )
 
-                # Suppress all idle actions while in a conversation.
+                # During conversation: suppress random behaviors but allow
+                # subtle head tracking so Rosie looks at the speaker.
                 if self._is_in_conversation:
+                    if now >= next_track:
+                        next_track = now + random.uniform(*CONVERSATION_TRACK_RANGE)
+                        await self._track_speaker()
                     continue
 
                 # --- Presence check (runs even when not fully idle) ---
@@ -304,6 +314,19 @@ class IdleBehavior:
         emotion = random.choice(IDLE_EMOTIONS)
         logger.debug("Idle emotion: %s", emotion)
         await self._play_emotion(emotion)
+
+    async def _track_speaker(self) -> None:
+        """Small head adjustment during conversation to look at the speaker.
+
+        Unlike idle look-around, these movements are subtle and centred
+        near the forward-facing position, giving the impression that
+        Rosie is maintaining eye contact or glancing at the person
+        speaking to her.
+        """
+        pan = random.uniform(*CONVERSATION_TRACK_PAN)
+        tilt = random.uniform(*CONVERSATION_TRACK_TILT)
+        logger.debug("Conversation tracking: pan=%.1f tilt=%.1f", pan, tilt)
+        await self._move_head(pan, tilt)
 
     async def _check_presence(self) -> None:
         """Check whether someone is visible on camera.

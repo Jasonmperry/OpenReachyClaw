@@ -217,6 +217,121 @@ class MemoryStore:
         return results
 
     # ------------------------------------------------------------------
+    # Admin — update / delete people, faces, memories
+    # ------------------------------------------------------------------
+
+    async def update_person_name(self, person_id: int, new_name: str) -> dict:
+        """Rename a person.  Returns the updated record or an error."""
+        async with self._lock:
+            assert self._conn is not None
+            row = self._conn.execute(
+                "SELECT id FROM people WHERE id = ?", (person_id,)
+            ).fetchone()
+            if not row:
+                return {"error": f"Person id={person_id} not found"}
+            now = datetime.now().isoformat()
+            self._conn.execute(
+                "UPDATE people SET name = ?, updated_at = ? WHERE id = ?",
+                (new_name, now, person_id),
+            )
+            self._conn.commit()
+            logger.info("Renamed person %d to %s", person_id, new_name)
+            return {"status": "updated", "id": person_id, "name": new_name}
+
+    async def delete_person(self, person_id: int) -> dict:
+        """Delete a person and all their face sightings and related memories."""
+        async with self._lock:
+            assert self._conn is not None
+            row = self._conn.execute(
+                "SELECT name FROM people WHERE id = ?", (person_id,)
+            ).fetchone()
+            if not row:
+                return {"error": f"Person id={person_id} not found"}
+            name = row["name"]
+            # Remove face sightings
+            self._conn.execute(
+                "DELETE FROM face_sightings WHERE person_id = ?", (person_id,)
+            )
+            # Remove memories about this person
+            self._conn.execute(
+                "DELETE FROM memories WHERE subject LIKE ? COLLATE NOCASE",
+                (f"%{name}%",),
+            )
+            # Remove the person
+            self._conn.execute("DELETE FROM people WHERE id = ?", (person_id,))
+            self._conn.commit()
+            logger.info("Deleted person %s (id=%d) and related data", name, person_id)
+            return {"status": "deleted", "id": person_id, "name": name}
+
+    async def delete_face_sighting(self, sighting_id: int) -> dict:
+        """Delete a single face sighting by ID."""
+        async with self._lock:
+            assert self._conn is not None
+            row = self._conn.execute(
+                "SELECT id FROM face_sightings WHERE id = ?", (sighting_id,)
+            ).fetchone()
+            if not row:
+                return {"error": f"Face sighting id={sighting_id} not found"}
+            self._conn.execute(
+                "DELETE FROM face_sightings WHERE id = ?", (sighting_id,)
+            )
+            self._conn.commit()
+            logger.info("Deleted face sighting %d", sighting_id)
+            return {"status": "deleted", "id": sighting_id}
+
+    async def delete_memory(self, memory_id: int) -> dict:
+        """Delete a single memory by ID."""
+        async with self._lock:
+            assert self._conn is not None
+            row = self._conn.execute(
+                "SELECT id FROM memories WHERE id = ?", (memory_id,)
+            ).fetchone()
+            if not row:
+                return {"error": f"Memory id={memory_id} not found"}
+            self._conn.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
+            self._conn.commit()
+            logger.info("Deleted memory %d", memory_id)
+            return {"status": "deleted", "id": memory_id}
+
+    async def update_memory(self, memory_id: int, fact: str | None = None, category: str | None = None) -> dict:
+        """Update a memory's fact and/or category."""
+        async with self._lock:
+            assert self._conn is not None
+            row = self._conn.execute(
+                "SELECT * FROM memories WHERE id = ?", (memory_id,)
+            ).fetchone()
+            if not row:
+                return {"error": f"Memory id={memory_id} not found"}
+            new_fact = fact if fact is not None else row["fact"]
+            new_cat = category if category is not None else row["category"]
+            self._conn.execute(
+                "UPDATE memories SET fact = ?, category = ? WHERE id = ?",
+                (new_fact, new_cat, memory_id),
+            )
+            self._conn.commit()
+            logger.info("Updated memory %d", memory_id)
+            return {"status": "updated", "id": memory_id, "fact": new_fact, "category": new_cat}
+
+    async def get_person_faces(self, person_id: int) -> list[dict]:
+        """Get all face sightings for a person (for admin view)."""
+        assert self._conn is not None
+        rows = self._conn.execute(
+            "SELECT id, image_path, confidence, seen_at FROM face_sightings "
+            "WHERE person_id = ? ORDER BY seen_at DESC",
+            (person_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    async def recall_all_with_ids(self) -> list[dict]:
+        """Like recall_all but includes the memory id for admin editing."""
+        assert self._conn is not None
+        rows = self._conn.execute(
+            "SELECT id, subject, fact, category, created_at FROM memories "
+            "ORDER BY created_at DESC LIMIT 200"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------------
     # Orders
     # ------------------------------------------------------------------
 

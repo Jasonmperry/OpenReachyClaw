@@ -208,11 +208,106 @@ async def learn_faces_from_directory(name: str, directory: str = Form(...)):
 
 @app.get("/api/memories")
 async def list_memories():
-    """List all memories (last 100)."""
+    """List all memories (last 200, with IDs for admin editing)."""
     from openreachyclaw.memory import get_memory_store
     store = get_memory_store()
-    memories = await store.recall_all()
+    memories = await store.recall_all_with_ids()
     return {"memories": memories}
+
+
+# ── Admin: People CRUD ────────────────────────────────────────
+
+@app.put("/api/people/{person_id}/name")
+async def rename_person(person_id: int, body: dict):
+    """Rename a person."""
+    from openreachyclaw.memory import get_memory_store
+    new_name = body.get("name", "").strip()
+    if not new_name:
+        return JSONResponse({"error": "Name is required"}, status_code=400)
+    store = get_memory_store()
+    result = await store.update_person_name(person_id, new_name)
+    if "error" in result:
+        return JSONResponse(result, status_code=404)
+    return result
+
+
+@app.delete("/api/people/{person_id}")
+async def delete_person(person_id: int):
+    """Delete a person and all their face sightings and memories."""
+    from openreachyclaw.memory import get_memory_store
+    store = get_memory_store()
+    result = await store.delete_person(person_id)
+    if "error" in result:
+        return JSONResponse(result, status_code=404)
+    return result
+
+
+# ── Admin: Faces CRUD ─────────────────────────────────────────
+
+@app.get("/api/people/{person_id}/faces")
+async def list_person_faces(person_id: int):
+    """List all face sightings for a person."""
+    from openreachyclaw.memory import get_memory_store
+    store = get_memory_store()
+    faces = await store.get_person_faces(person_id)
+    return {"person_id": person_id, "faces": faces}
+
+
+@app.delete("/api/faces/{sighting_id}")
+async def delete_face_sighting(sighting_id: int):
+    """Delete a single face sighting."""
+    from openreachyclaw.memory import get_memory_store
+    store = get_memory_store()
+    result = await store.delete_face_sighting(sighting_id)
+    if "error" in result:
+        return JSONResponse(result, status_code=404)
+    return result
+
+
+# ── Admin: Memories CRUD ──────────────────────────────────────
+
+@app.put("/api/memories/{memory_id}")
+async def update_memory(memory_id: int, body: dict):
+    """Update a memory's fact and/or category."""
+    from openreachyclaw.memory import get_memory_store
+    store = get_memory_store()
+    result = await store.update_memory(
+        memory_id,
+        fact=body.get("fact"),
+        category=body.get("category"),
+    )
+    if "error" in result:
+        return JSONResponse(result, status_code=404)
+    return result
+
+
+@app.delete("/api/memories/{memory_id}")
+async def delete_memory(memory_id: int):
+    """Delete a single memory."""
+    from openreachyclaw.memory import get_memory_store
+    store = get_memory_store()
+    result = await store.delete_memory(memory_id)
+    if "error" in result:
+        return JSONResponse(result, status_code=404)
+    return result
+
+
+# ── Tools & Skills registration ───────────────────────────────
+
+# Registered tools list — populated at startup via set_registered_tools()
+_registered_tools: list[dict] = []
+
+
+def set_registered_tools(tools: list[dict]) -> None:
+    """Set the list of registered tools for the /api/tools endpoint."""
+    global _registered_tools
+    _registered_tools = tools
+
+
+@app.get("/api/tools")
+async def list_tools():
+    """List all registered tools (for the Tools & Skills tab)."""
+    return {"tools": _registered_tools}
 
 
 # ── Server lifecycle ──────────────────────────────────────────

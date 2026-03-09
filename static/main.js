@@ -198,6 +198,15 @@ createApp({
     const uploadMessage = ref('');
     const uploadMessageClass = ref('');
 
+    // ---- Admin state ----
+    const expandedPerson = ref(null);
+    const editPersonName = ref('');
+    const personFaces = ref([]);
+    const adminMessage = ref('');
+    const adminMessageClass = ref('');
+    const editingMemory = ref(null);
+    const editMemoryFact = ref('');
+
     // ---- Helpers ----
     async function fetchJSON(url, opts = {}, timeoutMs = 5000) {
       const ctrl = new AbortController();
@@ -363,6 +372,11 @@ createApp({
 
     // ---- Tools ----
     async function fetchRegisteredTools() {
+      // Try our webhook API first, then fall back to Pollen's endpoint
+      try {
+        const data = await fetchJSON(`/api/tools?_=${Date.now()}`);
+        if (data.tools && data.tools.length) { registeredTools.value = data.tools; return; }
+      } catch { /* fall through */ }
       try {
         const data = await fetchJSON(`/tools/list?_=${Date.now()}`);
         registeredTools.value = data.tools || [];
@@ -544,6 +558,84 @@ createApp({
       }
     }
 
+    // ---- Admin: People / Faces / Memories ----
+    async function togglePersonExpand(person) {
+      if (expandedPerson.value === person.id) {
+        expandedPerson.value = null;
+        personFaces.value = [];
+        return;
+      }
+      expandedPerson.value = person.id;
+      editPersonName.value = person.name;
+      adminMessage.value = '';
+      try {
+        const data = await fetchJSON(`/api/people/${person.id}/faces?_=${Date.now()}`);
+        personFaces.value = data.faces || [];
+      } catch { personFaces.value = []; }
+    }
+
+    async function renamePerson(person) {
+      const newName = editPersonName.value.trim();
+      if (!newName) return;
+      adminMessage.value = 'Renaming...'; adminMessageClass.value = '';
+      try {
+        const data = await fetchJSON(`/api/people/${person.id}/name`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: newName }),
+        });
+        if (data.error) { adminMessage.value = data.error; adminMessageClass.value = 'msg-error'; }
+        else { adminMessage.value = `Renamed to ${newName}`; adminMessageClass.value = 'msg-ok'; fetchPeople(); }
+      } catch { adminMessage.value = 'Rename failed.'; adminMessageClass.value = 'msg-error'; }
+    }
+
+    async function deleteFace(sightingId, person) {
+      try {
+        await fetchJSON(`/api/faces/${sightingId}`, { method: 'DELETE' });
+        personFaces.value = personFaces.value.filter(f => f.id !== sightingId);
+        adminMessage.value = 'Photo deleted.'; adminMessageClass.value = 'msg-ok';
+        fetchPeople();
+      } catch { adminMessage.value = 'Delete failed.'; adminMessageClass.value = 'msg-error'; }
+    }
+
+    async function confirmDeletePerson(person) {
+      if (!confirm(`Delete ${person.name} and ALL their data (faces, memories)? This cannot be undone.`)) return;
+      adminMessage.value = 'Deleting...'; adminMessageClass.value = '';
+      try {
+        const data = await fetchJSON(`/api/people/${person.id}`, { method: 'DELETE' });
+        if (data.error) { adminMessage.value = data.error; adminMessageClass.value = 'msg-error'; }
+        else {
+          expandedPerson.value = null;
+          adminMessage.value = `Deleted ${person.name}.`; adminMessageClass.value = 'msg-ok';
+          fetchPeople(); fetchMemories();
+        }
+      } catch { adminMessage.value = 'Delete failed.'; adminMessageClass.value = 'msg-error'; }
+    }
+
+    function startEditMemory(m) {
+      editingMemory.value = m.id;
+      editMemoryFact.value = m.fact;
+    }
+
+    async function saveMemory(m) {
+      const fact = editMemoryFact.value.trim();
+      if (!fact) return;
+      try {
+        await fetchJSON(`/api/memories/${m.id}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fact }),
+        });
+        m.fact = fact;
+        editingMemory.value = null;
+      } catch { /* silent */ }
+    }
+
+    async function deleteMemory(memoryId) {
+      try {
+        await fetchJSON(`/api/memories/${memoryId}`, { method: 'DELETE' });
+        recentMemories.value = recentMemories.value.filter(m => m.id !== memoryId);
+      } catch { /* silent */ }
+    }
+
     // ---- Logs ----
     function parseLogMessages(raw) {
       const messages = [];
@@ -660,6 +752,11 @@ createApp({
       knownPeople, recentMemories, healthData,
       uploadName, uploadFile, uploadBusy, uploadMessage, uploadMessageClass,
       fetchPeople, fetchMemories, fetchHealth, onFileSelected, uploadFacePhoto,
+      // Admin
+      expandedPerson, editPersonName, personFaces, adminMessage, adminMessageClass,
+      editingMemory, editMemoryFact,
+      togglePersonExpand, renamePerson, deleteFace, confirmDeletePerson,
+      startEditMemory, saveMemory, deleteMemory,
     };
   },
 }).mount('#app');

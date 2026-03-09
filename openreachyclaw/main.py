@@ -26,7 +26,7 @@ from openreachyclaw.config import get_openai_api_key, validate_config
 from openreachyclaw.memory import get_memory_store
 from openreachyclaw.text_brain import TextBrain
 from openreachyclaw.tools.notify import NotifyTools, TOOLS_SCHEMA as NOTIFY_TOOLS_SCHEMA
-from openreachyclaw.webhook import set_text_brain, start_webhook_server
+from openreachyclaw.webhook import set_text_brain, set_registered_tools, start_webhook_server
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +102,9 @@ class OpenReachyClaw(ReachyMiniApp):  # type: ignore[misc]
         # 2. Build tool executor from our custom tools.
         notify_tools = NotifyTools(bridge)
         tool_executor = _build_tool_executor(notify_tools)
+
+        # 2b. Register tools for the web UI's Tools & Skills tab.
+        _register_tools_for_ui()
 
         # 3. Load personality (same instructions as voice brain).
         system_instructions = _load_system_instructions()
@@ -204,6 +207,81 @@ def _load_system_instructions() -> str:
             "You are a friendly and helpful desktop robot. "
             "You can chat with people on text channels like Slack and Discord."
         )
+
+
+def _register_tools_for_ui() -> None:
+    """Collect all tool descriptions and register them for the web UI."""
+    tools: list[dict] = []
+
+    # Our custom tools
+    from openreachyclaw.tools.faces import LearnFace, WhoIsThis, ListPeople
+    from openreachyclaw.tools.remember import Remember, Recall
+
+    for cls in [LearnFace, WhoIsThis, ListPeople, Remember, Recall]:
+        tools.append({"name": cls.name, "description": cls.description})
+
+    # Notify tools
+    tools.append({"name": "send_message_to_channel", "description": "Send a text message to a channel (Slack, Discord, etc.)"})
+    tools.append({"name": "send_photo_to_channel", "description": "Send a photo to a channel with an optional caption."})
+
+    # Try to discover Pollen's built-in tools
+    try:
+        from reachy_mini_conversation_app.tools.core_tools import get_all_tools
+        for t in get_all_tools():
+            name = getattr(t, "name", None) or type(t).__name__
+            desc = getattr(t, "description", "")
+            tools.append({"name": name, "description": desc})
+    except (ImportError, Exception):
+        # Pollen tools not available — add known built-ins manually
+        for name, desc in [
+            ("move_head", "Move Rosie's head (pan/tilt in degrees)."),
+            ("play_emotion", "Play an emotion animation."),
+            ("stop_emotion", "Stop the current emotion animation."),
+            ("dance", "Perform a dance move."),
+            ("stop_dance", "Stop the current dance."),
+            ("take_photo", "Capture a photo from the camera."),
+        ]:
+            tools.append({"name": name, "description": desc})
+
+    # Add optional tools if configured
+    try:
+        from openreachyclaw.tools.weather import Weather
+        tools.append({"name": Weather.name, "description": Weather.description})
+    except (ImportError, AttributeError):
+        pass
+
+    try:
+        from openreachyclaw.tools.web_search import WebSearch
+        tools.append({"name": WebSearch.name, "description": WebSearch.description})
+    except (ImportError, AttributeError):
+        pass
+
+    try:
+        from openreachyclaw.tools.send_sms import SendSMS
+        tools.append({"name": SendSMS.name, "description": SendSMS.description})
+    except (ImportError, AttributeError):
+        pass
+
+    try:
+        from openreachyclaw.tools.take_order import TakeOrder
+        tools.append({"name": TakeOrder.name, "description": TakeOrder.description})
+    except (ImportError, AttributeError):
+        pass
+
+    try:
+        from openreachyclaw.tools.horoscope import Horoscope
+        tools.append({"name": Horoscope.name, "description": Horoscope.description})
+    except (ImportError, AttributeError):
+        pass
+
+    try:
+        from openreachyclaw.tools.nano_banana import NanoBanana
+        tools.append({"name": NanoBanana.name, "description": NanoBanana.description})
+    except (ImportError, AttributeError):
+        pass
+
+    set_registered_tools(tools)
+    logger.info("Registered %d tools for web UI", len(tools))
 
 
 def _build_tool_executor(notify_tools: NotifyTools) -> Any:

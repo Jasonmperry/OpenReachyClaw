@@ -318,11 +318,49 @@
                 No one learned yet. Tell Rosie "remember my face" to get started!
               </div>
               <div v-else class="people-list">
-                <div v-for="p in knownPeople" :key="p.id" class="people-card">
-                  <div class="people-name">{{ p.name }}</div>
-                  <div class="people-stats">
-                    <span class="tag tag-sm tag-ok">{{ p.face_count }} photo(s)</span>
-                    <span class="tag tag-sm">{{ p.memory_count }} memory(ies)</span>
+                <div v-for="p in knownPeople" :key="p.id" class="people-card" :class="{ 'people-card-expanded': expandedPerson === p.id }">
+                  <div class="people-card-header" @click="togglePersonExpand(p)">
+                    <div>
+                      <div class="people-name">{{ p.name }}</div>
+                      <div class="people-stats">
+                        <span class="tag tag-sm tag-ok">{{ p.face_count }} photo(s)</span>
+                        <span class="tag tag-sm">{{ p.memory_count }} memory(ies)</span>
+                      </div>
+                    </div>
+                    <span class="expand-arrow">{{ expandedPerson === p.id ? '&#x25B2;' : '&#x25BC;' }}</span>
+                  </div>
+
+                  <!-- Expanded admin panel -->
+                  <div v-if="expandedPerson === p.id" class="people-admin">
+                    <!-- Rename -->
+                    <div class="admin-section">
+                      <label class="admin-label">Rename</label>
+                      <div class="admin-row">
+                        <input type="text" v-model="editPersonName" placeholder="New name" class="admin-input" />
+                        <button class="btn-ghost" @click="renamePerson(p)" :disabled="!editPersonName.trim()">Save</button>
+                      </div>
+                    </div>
+
+                    <!-- Face photos -->
+                    <div class="admin-section" v-if="personFaces.length">
+                      <label class="admin-label">Face Photos ({{ personFaces.length }})</label>
+                      <div class="face-grid">
+                        <div v-for="f in personFaces" :key="f.id" class="face-thumb">
+                          <div class="face-thumb-info">
+                            <span class="face-date">{{ f.seen_at?.slice(0, 10) }}</span>
+                            <span class="face-conf">{{ (f.confidence * 100).toFixed(0) }}%</span>
+                          </div>
+                          <button class="btn-delete-sm" @click="deleteFace(f.id, p)" title="Delete this photo">&times;</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Delete person -->
+                    <div class="admin-section admin-danger">
+                      <button class="btn-danger" @click="confirmDeletePerson(p)">Delete {{ p.name }} &amp; All Data</button>
+                    </div>
+
+                    <span v-if="adminMessage" class="action-msg" :class="adminMessageClass">{{ adminMessage }}</span>
                   </div>
                 </div>
               </div>
@@ -358,10 +396,16 @@
               </div>
               <div v-if="!recentMemories.length" class="body-text">No memories stored yet.</div>
               <div v-else class="memory-list">
-                <div v-for="m in recentMemories" :key="m.created_at" class="memory-item">
+                <div v-for="m in recentMemories" :key="m.id || m.created_at" class="memory-item">
                   <span class="memory-subject">{{ m.subject }}</span>
-                  <span class="memory-fact">{{ m.fact }}</span>
+                  <span v-if="editingMemory !== m.id" class="memory-fact" @dblclick="startEditMemory(m)">{{ m.fact }}</span>
+                  <div v-else class="memory-edit-row">
+                    <input type="text" v-model="editMemoryFact" class="admin-input memory-edit-input" @keyup.enter="saveMemory(m)" />
+                    <button class="btn-ghost" @click="saveMemory(m)">Save</button>
+                    <button class="btn-ghost" @click="editingMemory = null">Cancel</button>
+                  </div>
                   <span class="memory-cat tag tag-sm">{{ m.category }}</span>
+                  <button v-if="m.id" class="btn-delete-sm" @click="deleteMemory(m.id)" title="Delete memory">&times;</button>
                 </div>
               </div>
             </section>
