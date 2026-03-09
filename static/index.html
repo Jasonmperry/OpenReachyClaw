@@ -284,6 +284,89 @@
             </section>
           </div>
 
+          <!-- =============== PEOPLE =============== -->
+          <div v-show="activeTab === 'people'">
+            <div class="page-header">
+              <p class="kicker">Memory</p>
+              <h1>People<span class="dot">.</span></h1>
+            </div>
+
+            <!-- Health / Stats -->
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Status</p><h2>System Health</h2></div>
+                <button class="btn-ghost" @click="fetchHealth">Refresh</button>
+              </div>
+              <div v-if="healthData" class="health-grid">
+                <div class="health-item" v-for="(val, key) in healthData" :key="key">
+                  <span class="health-key">{{ key }}</span>
+                  <span class="health-val" :class="val === true ? 'health-ok' : (val === false ? 'health-bad' : '')">
+                    {{ val === true ? 'OK' : (val === false ? 'OFF' : val) }}
+                  </span>
+                </div>
+              </div>
+              <p v-else class="body-text">Click Refresh to check system health.</p>
+            </section>
+
+            <!-- Known People -->
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Face Recognition</p><h2>Known People</h2></div>
+                <span class="tag tag-ok">{{ knownPeople.length }} people</span>
+              </div>
+              <div v-if="!knownPeople.length" class="body-text">
+                No one learned yet. Tell Rosie "remember my face" to get started!
+              </div>
+              <div v-else class="people-list">
+                <div v-for="p in knownPeople" :key="p.id" class="people-card">
+                  <div class="people-name">{{ p.name }}</div>
+                  <div class="people-stats">
+                    <span class="tag tag-sm tag-ok">{{ p.face_count }} photo(s)</span>
+                    <span class="tag tag-sm">{{ p.memory_count }} memory(ies)</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Upload face photo -->
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Add</p><h2>Upload Face Photo</h2></div>
+              </div>
+              <p class="body-text">Upload a photo of someone so Rosie can learn to recognise them.</p>
+              <div class="field-group">
+                <label for="upload-name">Person's Name</label>
+                <input id="upload-name" type="text" v-model="uploadName" placeholder="e.g. Jason" />
+              </div>
+              <div class="field-group">
+                <label for="upload-file">Photo</label>
+                <input id="upload-file" type="file" accept="image/*" @change="onFileSelected" />
+              </div>
+              <div class="actions">
+                <button class="btn-primary" @click="uploadFacePhoto" :disabled="uploadBusy || !uploadName.trim() || !uploadFile">
+                  {{ uploadBusy ? 'Uploading...' : 'Upload & Learn' }}
+                </button>
+                <span v-if="uploadMessage" class="action-msg" :class="uploadMessageClass">{{ uploadMessage }}</span>
+              </div>
+            </section>
+
+            <!-- Memories -->
+            <section class="card">
+              <div class="card-header">
+                <div><p class="kicker">Data</p><h2>Recent Memories</h2></div>
+                <button class="btn-ghost" @click="fetchMemories">Refresh</button>
+              </div>
+              <div v-if="!recentMemories.length" class="body-text">No memories stored yet.</div>
+              <div v-else class="memory-list">
+                <div v-for="m in recentMemories" :key="m.created_at" class="memory-item">
+                  <span class="memory-subject">{{ m.subject }}</span>
+                  <span class="memory-fact">{{ m.fact }}</span>
+                  <span class="memory-cat tag tag-sm">{{ m.category }}</span>
+                </div>
+              </div>
+            </section>
+          </div>
+
           <!-- =============== LOGS =============== -->
           <div v-show="activeTab === 'logs'">
             <div class="page-header">

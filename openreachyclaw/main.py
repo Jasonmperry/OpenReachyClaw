@@ -7,11 +7,14 @@ Initialises:
 - Structured logging (console + rotating file)
 - SQLite-backed persistent memory
 - Face recognition tools
+- Idle heartbeat behaviors (looking around, emotions, presence detection)
+- Security/greeting system (identify visitors, remember faces)
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import threading
 from typing import Any
@@ -19,7 +22,7 @@ from typing import Any
 from reachy_mini import ReachyMini, ReachyMiniApp
 
 from openreachyclaw.bridges.openclaw import OpenClawBridge
-from openreachyclaw.config import get_openai_api_key
+from openreachyclaw.config import get_openai_api_key, validate_config
 from openreachyclaw.memory import get_memory_store
 from openreachyclaw.text_brain import TextBrain
 from openreachyclaw.tools.notify import NotifyTools, TOOLS_SCHEMA as NOTIFY_TOOLS_SCHEMA
@@ -35,11 +38,15 @@ class OpenReachyClaw(ReachyMiniApp):  # type: ignore[misc]
     dont_start_webserver = False
 
     def run(self, reachy_mini: ReachyMini, stop_event: threading.Event) -> None:
+        # Validate config and log integration status.
+        status = validate_config()
+        logger.info("Integration status: %s", status)
+
         # Initialise persistent memory on startup.
         store = get_memory_store()
         logger.info("Persistent memory ready (%s)", store._db_path)
 
-        # Start text channel infrastructure in a background thread.
+        # Start text channel + idle behaviors in a background thread.
         text_thread = threading.Thread(
             target=self._run_text_channels,
             args=(reachy_mini, stop_event),
@@ -74,7 +81,7 @@ class OpenReachyClaw(ReachyMiniApp):  # type: ignore[misc]
     def _run_text_channels(
         self, reachy_mini: ReachyMini, stop_event: threading.Event
     ) -> None:
-        """Start the webhook server, text brain, and OpenClaw bridge."""
+        """Start the webhook server, text brain, idle behaviors, and OpenClaw bridge."""
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -110,16 +117,80 @@ class OpenReachyClaw(ReachyMiniApp):  # type: ignore[misc]
         set_text_brain(brain)
         webhook_task = await start_webhook_server()
 
-        logger.info("Text channels ready — webhook + OpenClaw bridge running")
+        # 6. Start idle heartbeat + greeting system.
+        idle_behavior, greeter = await _start_idle_system(tool_executor)
 
-        # 6. Wait for shutdown signal.
+        logger.info("Text channels ready — webhook + OpenClaw + idle behaviors running")
+
+        # 7. Wait for shutdown signal.
         try:
             while not stop_event.is_set():
                 await asyncio.sleep(0.5)
         finally:
+            if idle_behavior:
+                await idle_behavior.stop()
             await brain.close()
             await bridge.stop()
             webhook_task.cancel()
+
+
+async def _start_idle_system(tool_executor: Any) -> tuple:
+    """Initialise the heartbeat idle behaviors and presence greeter.
+
+    Returns (idle_behavior, greeter) — either may be None if setup fails.
+    """
+    try:
+        from openreachyclaw.heartbeat import IdleBehavior
+        from openreachyclaw.greeter import PresenceGreeter
+
+        store = get_memory_store()
+
+        # Camera frame getter — tries to get a frame from Pollen's camera worker.
+        def get_frame():
+            try:
+                import sys
+                mod = sys.modules.get("reachy_mini_conversation_app.tools.core_tools")
+                if mod and hasattr(mod, "_deps") and mod._deps and mod._deps.camera_worker:
+                    return mod._deps.camera_worker.get_latest_frame()
+            except Exception:
+                pass
+            return None
+
+        # Tool dispatcher for heartbeat (adapts dict-based executor to json-string based)
+        async def heartbeat_dispatcher(name: str, args_json: str, deps: Any) -> Any:
+            args = json.loads(args_json)
+            return await tool_executor(name, args)
+
+        # Create greeter
+        greeter = PresenceGreeter(
+            camera_frame_getter=get_frame,
+            tool_dispatcher=heartbeat_dispatcher,
+            memory_store=store,
+        )
+
+        # Presence callback for heartbeat — delegates to greeter
+        async def on_presence(frame: Any) -> None:
+            result = await greeter.check_and_greet()
+            if result.person_detected:
+                if result.identified:
+                    logger.info("Greeted %s: %s", result.name, result.greeting_text)
+                else:
+                    logger.info("Unknown person detected, photo: %s", result.photo_path)
+
+        # Create and start idle behavior
+        idle = IdleBehavior(
+            tool_dispatcher=heartbeat_dispatcher,
+            frame_getter=get_frame,
+            on_presence_detected=on_presence,
+        )
+        idle.start()
+
+        logger.info("Idle behaviors + presence greeter active")
+        return idle, greeter
+
+    except Exception:
+        logger.warning("Could not start idle behaviors — continuing without them", exc_info=True)
+        return None, None
 
 
 def _load_system_instructions() -> str:
@@ -148,7 +219,6 @@ def _build_tool_executor(notify_tools: NotifyTools) -> Any:
             # Try Pollen's tool dispatch for shared tools (camera, etc.).
             try:
                 from reachy_mini_conversation_app.tools.core_tools import dispatch_tool_call
-                import json
                 result = await dispatch_tool_call(name, json.dumps(args), None)
                 return json.dumps(result) if not isinstance(result, str) else result
             except (ImportError, Exception) as exc:

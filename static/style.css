@@ -531,6 +531,78 @@ input::placeholder, textarea::placeholder { color: rgba(139,146,160,0.5); }
 }
 .control-btn-emotion:hover:not(:disabled) .control-btn-label { color: var(--magenta); }
 
+/* People tab */
+.people-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+.people-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 1rem;
+}
+.people-name {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+.people-stats {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.5rem;
+}
+.health-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+.health-key {
+  color: var(--cool-gray);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.health-val { font-weight: 500; }
+.health-ok { color: #4ecdc4; }
+.health-bad { color: var(--magenta); }
+.memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.memory-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.85rem;
+}
+.memory-subject {
+  font-weight: 600;
+  color: var(--aqua);
+  min-width: 80px;
+}
+.memory-fact {
+  flex: 1;
+  color: var(--light);
+}
+.memory-cat {
+  flex-shrink: 0;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .content { padding: 1.5rem 1rem 2rem; }

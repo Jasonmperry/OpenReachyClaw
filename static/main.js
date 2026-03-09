@@ -15,6 +15,7 @@ createApp({
     const tabs = [
       { id: 'live', label: 'Live' },
       { id: 'controls', label: 'Controls' },
+      { id: 'people', label: 'People' },
       { id: 'settings', label: 'Settings' },
       { id: 'personality', label: 'Personality' },
       { id: 'tools', label: 'Tools & Skills' },
@@ -186,6 +187,16 @@ createApp({
     const liveMessage = ref('');
     const liveMessageClass = ref('');
     const modalImage = ref(null);
+
+    // ---- People tab state ----
+    const knownPeople = ref([]);
+    const recentMemories = ref([]);
+    const healthData = ref(null);
+    const uploadName = ref('');
+    const uploadFile = ref(null);
+    const uploadBusy = ref(false);
+    const uploadMessage = ref('');
+    const uploadMessageClass = ref('');
 
     // ---- Helpers ----
     async function fetchJSON(url, opts = {}, timeoutMs = 5000) {
@@ -474,6 +485,65 @@ createApp({
       finally { controlBusy.value = false; }
     }
 
+    // ---- People tab ----
+    async function fetchPeople() {
+      try {
+        // Use webhook API on port 8100
+        const data = await fetchJSON(`/api/people?_=${Date.now()}`, {}, 5000);
+        knownPeople.value = data.people || [];
+      } catch { knownPeople.value = []; }
+    }
+
+    async function fetchMemories() {
+      try {
+        const data = await fetchJSON(`/api/memories?_=${Date.now()}`, {}, 5000);
+        recentMemories.value = data.memories || [];
+      } catch { recentMemories.value = []; }
+    }
+
+    async function fetchHealth() {
+      try {
+        const data = await fetchJSON(`/health/detailed?_=${Date.now()}`, {}, 8000);
+        healthData.value = data;
+      } catch { healthData.value = { error: 'Could not reach health endpoint' }; }
+    }
+
+    function onFileSelected(e) {
+      uploadFile.value = e.target.files[0] || null;
+    }
+
+    async function uploadFacePhoto() {
+      const name = uploadName.value.trim();
+      if (!name || !uploadFile.value) return;
+      uploadBusy.value = true;
+      uploadMessage.value = 'Uploading...';
+      uploadMessageClass.value = '';
+      try {
+        const formData = new FormData();
+        formData.append('file', uploadFile.value);
+        const resp = await fetch(`/api/people/${encodeURIComponent(name)}/face`, {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await resp.json();
+        if (data.error) {
+          uploadMessage.value = data.error;
+          uploadMessageClass.value = 'msg-error';
+        } else {
+          uploadMessage.value = `Learned ${name}! (${data.total_photos} photo(s) total)`;
+          uploadMessageClass.value = 'msg-ok';
+          uploadName.value = '';
+          uploadFile.value = null;
+          fetchPeople();
+        }
+      } catch {
+        uploadMessage.value = 'Upload failed.';
+        uploadMessageClass.value = 'msg-error';
+      } finally {
+        uploadBusy.value = false;
+      }
+    }
+
     // ---- Logs ----
     function parseLogMessages(raw) {
       const messages = [];
@@ -536,6 +606,7 @@ createApp({
       if (tab === 'tools') fetchRegisteredTools();
       if (tab === 'live') fetchGalleryImages();
       if (tab === 'controls') { fetchDances(); fetchEmotions(); }
+      if (tab === 'people') { fetchPeople(); fetchMemories(); }
     });
 
     onMounted(async () => {
@@ -585,6 +656,10 @@ createApp({
       cameraStreamUrl, cameraError, stylePrompt, generatingImage,
       galleryImages, liveMessage, liveMessageClass, modalImage,
       takePhoto, applyStyle, fetchGalleryImages, openImage,
+      // People tab
+      knownPeople, recentMemories, healthData,
+      uploadName, uploadFile, uploadBusy, uploadMessage, uploadMessageClass,
+      fetchPeople, fetchMemories, fetchHealth, onFileSelected, uploadFacePhoto,
     };
   },
 }).mount('#app');

@@ -16,6 +16,7 @@ fi
 echo "--- Deploying tools to ~/rosie_tools/ ---"
 rsync $RSYNC_OPTS \
     --exclude notify.py \
+    --exclude send_notification.py \
     "$SCRIPT_DIR/openreachyclaw/tools/" \
     "$JETSON:~/rosie_tools/"
 
