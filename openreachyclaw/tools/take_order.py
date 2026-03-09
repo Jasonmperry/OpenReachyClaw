@@ -1,16 +1,13 @@
-"""Tool for taking and managing orders (food, drinks, tasks)."""
+"""Persistent order management tool — backed by SQLite."""
 
-import json
 import logging
-from datetime import datetime
 from typing import Any, Dict
 
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 
-logger = logging.getLogger(__name__)
+from openreachyclaw.memory import get_memory_store
 
-# In-memory order store (persists while app is running)
-_orders: list[dict] = []
+logger = logging.getLogger(__name__)
 
 
 class TakeOrder(Tool):
@@ -20,7 +17,8 @@ class TakeOrder(Tool):
     description = (
         "Take an order from someone. Use this when a person asks you to remember "
         "an order, place a request, or add something to a list. You can take food "
-        "orders, drink orders, supply requests, or any kind of task."
+        "orders, drink orders, supply requests, or any kind of task. "
+        "Orders persist across restarts."
     )
     parameters_schema = {
         "type": "object",
@@ -50,25 +48,10 @@ class TakeOrder(Tool):
         if not person or not item:
             return {"error": "Need both a person name and an item to place an order."}
 
-        order = {
-            "id": len(_orders) + 1,
-            "person": person,
-            "item": item,
-            "notes": notes,
-            "time": datetime.now().strftime("%I:%M %p"),
-            "status": "pending",
-        }
-        _orders.append(order)
-
-        logger.info("Order #%d: %s ordered '%s'", order["id"], person, item)
-        return {
-            "status": "confirmed",
-            "order_id": order["id"],
-            "person": person,
-            "item": item,
-            "notes": notes,
-            "message": f"Order #{order['id']} confirmed for {person}: {item}",
-        }
+        store = get_memory_store()
+        result = await store.take_order(person, item, notes)
+        result["message"] = f"Order #{result['order_id']} confirmed for {person}: {item}"
+        return result
 
 
 class ListOrders(Tool):
@@ -77,7 +60,8 @@ class ListOrders(Tool):
     name = "list_orders"
     description = (
         "List all orders that have been taken. Use this when someone asks "
-        "what orders are pending, what people have ordered, or to review the order list."
+        "what orders are pending, what people have ordered, or to review the order list. "
+        "Orders persist across restarts."
     )
     parameters_schema = {
         "type": "object",
@@ -91,18 +75,18 @@ class ListOrders(Tool):
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
-        person_filter = kwargs.get("person", "").strip().lower()
+        person_filter = kwargs.get("person", "").strip()
 
-        if not _orders:
+        store = get_memory_store()
+        orders = await store.list_orders(person_filter)
+
+        logger.info("Listing %d orders (filter=%r)", len(orders), person_filter or "none")
+
+        if not orders:
             return {"orders": [], "message": "No orders yet."}
 
-        filtered = _orders
-        if person_filter:
-            filtered = [o for o in _orders if person_filter in o["person"].lower()]
-
-        logger.info("Listing %d orders (filter=%r)", len(filtered), person_filter or "none")
         return {
-            "orders": filtered,
-            "total": len(filtered),
-            "message": f"{len(filtered)} order(s) found.",
+            "orders": orders,
+            "total": len(orders),
+            "message": f"{len(orders)} order(s) found.",
         }

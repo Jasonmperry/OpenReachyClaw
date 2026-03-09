@@ -1,16 +1,16 @@
-"""Simple memory tool — remembers facts and recalls them later."""
+"""Persistent memory tools — remembers facts and recalls them across restarts.
 
-import json
+Backed by SQLite via openreachyclaw.memory.MemoryStore.
+"""
+
 import logging
-from datetime import datetime
 from typing import Any, Dict
 
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 
-logger = logging.getLogger(__name__)
+from openreachyclaw.memory import get_memory_store
 
-# Simple in-memory store (persists while app is running)
-_memories: list[dict] = []
+logger = logging.getLogger(__name__)
 
 
 class Remember(Tool):
@@ -20,7 +20,8 @@ class Remember(Tool):
     description = (
         "Store a piece of information to remember later. Use this when someone tells "
         "you their name, preferences, important facts, or anything worth remembering. "
-        "Example: 'Remember that Jason likes oat milk lattes.'"
+        "Example: 'Remember that Jason likes oat milk lattes.' "
+        "This information persists across restarts."
     )
     parameters_schema = {
         "type": "object",
@@ -33,6 +34,11 @@ class Remember(Tool):
                 "type": "string",
                 "description": "The information to remember.",
             },
+            "category": {
+                "type": "string",
+                "description": "Optional category: 'preference', 'fact', 'relationship', 'general'.",
+                "default": "general",
+            },
         },
         "required": ["subject", "fact"],
     }
@@ -40,18 +46,13 @@ class Remember(Tool):
     async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
         subject = kwargs.get("subject", "").strip()
         fact = kwargs.get("fact", "").strip()
+        category = kwargs.get("category", "general").strip()
 
         if not subject or not fact:
             return {"error": "Need a subject and a fact to remember."}
 
-        memory = {
-            "subject": subject,
-            "fact": fact,
-            "time": datetime.now().isoformat(),
-        }
-        _memories.append(memory)
-        logger.info("Remembered about %s: %s", subject, fact[:80])
-        return {"status": "remembered", "subject": subject, "fact": fact}
+        store = get_memory_store()
+        return await store.remember(subject, fact, category)
 
 
 class Recall(Tool):
@@ -60,32 +61,42 @@ class Recall(Tool):
     name = "recall"
     description = (
         "Recall what you know about a person, topic, or thing. Use this when someone "
-        "asks 'what do you know about me?' or when you need context about a subject."
+        "asks 'what do you know about me?' or when you need context about a subject. "
+        "Memories persist across restarts. Use '*' to recall everything."
     )
     parameters_schema = {
         "type": "object",
         "properties": {
             "subject": {
                 "type": "string",
-                "description": "Who or what to recall information about.",
+                "description": "Who or what to recall information about. Use '*' to recall everything.",
             },
         },
         "required": ["subject"],
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> Dict[str, Any]:
-        subject = kwargs.get("subject", "").strip().lower()
+        subject = kwargs.get("subject", "").strip()
 
         if not subject:
             return {"error": "Need a subject to recall."}
 
-        matches = [m for m in _memories if subject in m["subject"].lower()]
+        store = get_memory_store()
+
+        if subject == "*":
+            matches = await store.recall_all()
+        else:
+            matches = await store.recall(subject)
+
         logger.info("Recall %r: found %d memories", subject, len(matches))
 
         if not matches:
             return {"memories": [], "message": f"I don't have any memories about '{subject}' yet."}
 
         return {
-            "memories": [{"subject": m["subject"], "fact": m["fact"]} for m in matches],
+            "memories": [
+                {"subject": m["subject"], "fact": m["fact"], "category": m.get("category", "general")}
+                for m in matches
+            ],
             "message": f"Found {len(matches)} memory(ies) about '{subject}'.",
         }

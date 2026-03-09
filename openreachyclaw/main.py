@@ -2,6 +2,11 @@
 
 Subclasses ReachyMiniApp to run Pollen's voice pipeline alongside
 our text brain (Chat Completions) and OpenClaw webhook server.
+
+Initialises:
+- Structured logging (console + rotating file)
+- SQLite-backed persistent memory
+- Face recognition tools
 """
 
 from __future__ import annotations
@@ -15,6 +20,7 @@ from reachy_mini import ReachyMini, ReachyMiniApp
 
 from openreachyclaw.bridges.openclaw import OpenClawBridge
 from openreachyclaw.config import get_openai_api_key
+from openreachyclaw.memory import get_memory_store
 from openreachyclaw.text_brain import TextBrain
 from openreachyclaw.tools.notify import NotifyTools, TOOLS_SCHEMA as NOTIFY_TOOLS_SCHEMA
 from openreachyclaw.webhook import set_text_brain, start_webhook_server
@@ -29,6 +35,10 @@ class OpenReachyClaw(ReachyMiniApp):  # type: ignore[misc]
     dont_start_webserver = False
 
     def run(self, reachy_mini: ReachyMini, stop_event: threading.Event) -> None:
+        # Initialise persistent memory on startup.
+        store = get_memory_store()
+        logger.info("Persistent memory ready (%s)", store._db_path)
+
         # Start text channel infrastructure in a background thread.
         text_thread = threading.Thread(
             target=self._run_text_channels,
@@ -142,6 +152,7 @@ def _build_tool_executor(notify_tools: NotifyTools) -> Any:
                 result = await dispatch_tool_call(name, json.dumps(args), None)
                 return json.dumps(result) if not isinstance(result, str) else result
             except (ImportError, Exception) as exc:
+                logger.error("Tool dispatch failed for %s: %s", name, exc)
                 return f'{{"error": "Unknown tool: {name}", "detail": "{exc}"}}'
         return await handler.execute(name, args)
 
@@ -150,14 +161,15 @@ def _build_tool_executor(notify_tools: NotifyTools) -> Any:
 
 def cli_entry() -> None:
     """CLI entry point: openreachyclaw command."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(name)s %(levelname)s %(message)s",
-    )
+    from openreachyclaw.logging_setup import setup_logging
+    setup_logging()
+
+    logger.info("OpenReachyClaw starting up")
     app = OpenReachyClaw()
     try:
         app.wrapped_run()
     except KeyboardInterrupt:
+        logger.info("Shutting down (keyboard interrupt)")
         app.stop()
 
 

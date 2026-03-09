@@ -17,6 +17,6 @@ weather
 take_order
 web_search
 send_sms
-send_notification
 take_photo
 horoscope
+faces

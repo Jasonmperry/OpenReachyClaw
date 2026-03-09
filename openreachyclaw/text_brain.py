@@ -1,7 +1,14 @@
-"""Text brain — Chat Completions API for text-channel conversations."""
+"""Text brain — Chat Completions API for text-channel conversations.
+
+Handles text-channel messages with:
+- Shared httpx.AsyncClient (reused across requests)
+- Retry with exponential backoff on transient failures
+- Request ID tracing via logging_setup
+"""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -16,6 +23,7 @@ from openreachyclaw.config import (
     get_openai_base_url,
     get_text_model,
 )
+from openreachyclaw.logging_setup import new_request_id, request_id_var
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +32,10 @@ VOICE_ONLY_TOOLS = {"play_emotion", "stop_emotion", "move_head"}
 
 # Max tool-call rounds per incoming message to avoid infinite loops.
 MAX_TOOL_ROUNDS = 5
+
+# Retry settings for transient API failures.
+MAX_RETRIES = 3
+RETRY_BACKOFF_BASE = 2.0  # seconds
 
 
 class ConversationHistory:
@@ -96,7 +108,11 @@ class TextBrain:
         text: str,
         thread_id: str = "",
     ) -> str:
+        rid = new_request_id()
+        request_id_var.set(rid)
+
         conv_key = self.history.key(channel, sender, thread_id)
+        logger.info("Handling message on %s from %s: %s", channel, display_name, text[:100])
 
         # Build system prompt with channel context.
         system = (
@@ -112,8 +128,14 @@ class TextBrain:
         messages = [{"role": "system", "content": system}] + self.history.get(conv_key)
 
         # Tool call loop.
+        assistant_msg: dict = {}
         for _round in range(MAX_TOOL_ROUNDS):
-            resp = await self._chat_completion(messages, use_tools=True)
+            try:
+                resp = await self._chat_completion_with_retry(messages, use_tools=True)
+            except Exception as exc:
+                logger.error("Chat completion failed after retries: %s", exc)
+                return "Sorry, I'm having trouble connecting to my brain right now. Try again in a moment."
+
             choice = resp["choices"][0]
             assistant_msg = choice["message"]
 
@@ -123,7 +145,9 @@ class TextBrain:
 
             if choice["finish_reason"] != "tool_calls" or not assistant_msg.get("tool_calls"):
                 # Done — return text content.
-                return assistant_msg.get("content") or ""
+                reply = assistant_msg.get("content") or ""
+                logger.info("Reply (%d chars): %s", len(reply), reply[:100])
+                return reply
 
             # Execute tool calls.
             for tool_call in assistant_msg["tool_calls"]:
@@ -140,6 +164,38 @@ class TextBrain:
         logger.warning("Max tool rounds reached for %s", conv_key)
         return assistant_msg.get("content") or "Sorry, that took too many steps. Could you try again?"
 
+    async def _chat_completion_with_retry(
+        self, messages: list[dict], use_tools: bool
+    ) -> dict:
+        """Call chat completions with exponential backoff on transient errors."""
+        last_exc: Exception | None = None
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                return await self._chat_completion(messages, use_tools)
+            except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
+                last_exc = exc
+                if attempt < MAX_RETRIES:
+                    wait = RETRY_BACKOFF_BASE ** attempt
+                    logger.warning(
+                        "Chat completion attempt %d failed (%s), retrying in %.1fs",
+                        attempt + 1, type(exc).__name__, wait,
+                    )
+                    await asyncio.sleep(wait)
+            except httpx.HTTPStatusError as exc:
+                # Retry on 429 (rate limit) and 5xx (server errors)
+                if exc.response.status_code in (429, 500, 502, 503, 504):
+                    last_exc = exc
+                    if attempt < MAX_RETRIES:
+                        wait = RETRY_BACKOFF_BASE ** attempt
+                        logger.warning(
+                            "Chat completion attempt %d got %d, retrying in %.1fs",
+                            attempt + 1, exc.response.status_code, wait,
+                        )
+                        await asyncio.sleep(wait)
+                else:
+                    raise
+        raise last_exc  # type: ignore[misc]
+
     async def _chat_completion(self, messages: list[dict], use_tools: bool) -> dict:
         payload: dict[str, Any] = {
             "model": self._model,
@@ -154,9 +210,11 @@ class TextBrain:
 
     async def _execute_tool(self, tool_call: dict) -> str:
         name = tool_call["function"]["name"]
+        logger.info("Executing tool: %s", name)
         try:
             args = json.loads(tool_call["function"]["arguments"])
         except json.JSONDecodeError:
+            logger.error("Invalid JSON arguments for tool %s", name)
             return json.dumps({"error": f"Invalid arguments for {name}"})
 
         if self.tool_executor is None:
